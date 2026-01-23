@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -99,8 +99,23 @@ export default function Generate() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [toneValue, setToneValue] = useState(initialState.toneValue);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  
+  // Use refs to always have current values for beforeunload
+  const stateRef = useRef({ config, generatedScript, editableScript, toneValue });
+  
+  useEffect(() => {
+    stateRef.current = { config, generatedScript, editableScript, toneValue };
+  }, [config, generatedScript, editableScript, toneValue]);
 
-  // Persist state to sessionStorage
+  // Force save function for critical moments
+  const forceSave = useCallback(() => {
+    const stateToSave: PersistedState = stateRef.current;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    setLastSaved(new Date());
+  }, []);
+
+  // Persist state to localStorage on changes
   useEffect(() => {
     const stateToSave: PersistedState = {
       config,
@@ -109,7 +124,26 @@ export default function Generate() {
       toneValue,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    setLastSaved(new Date());
   }, [config, generatedScript, editableScript, toneValue]);
+
+  // Critical: Force save before page unload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Always save before unload
+      forceSave();
+      
+      // Warn user if they have unsaved edits in progress
+      if (isEditing && editableScript !== generatedScript) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved edits. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [forceSave, isEditing, editableScript, generatedScript]);
 
   const handleToneChange = (value: number[]) => {
     setToneValue(value);
@@ -403,11 +437,19 @@ export default function Generate() {
     <AppLayout>
       <div className="container py-8 animate-fade-in">
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Mic className="h-5 w-5 text-primary" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <Mic className="h-5 w-5 text-primary" />
+              </div>
+              <h1 className="font-serif text-3xl font-semibold">Content Generator</h1>
             </div>
-            <h1 className="font-serif text-3xl font-semibold">Content Generator</h1>
+            {lastSaved && (generatedScript || editableScript) && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Save className="h-3 w-3" />
+                <span>Draft saved {lastSaved.toLocaleTimeString()}</span>
+              </div>
+            )}
           </div>
           <p className="text-muted-foreground">
             Configure Aegis parameters to generate strategic intelligence content.
