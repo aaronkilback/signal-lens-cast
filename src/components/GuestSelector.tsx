@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, User, Trash2, Edit2 } from 'lucide-react';
+import { Plus, User, Trash2, Edit2, Search, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,7 @@ export function GuestSelector({ selectedGuestId, onGuestSelect }: GuestSelectorP
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGuest, setEditingGuest] = useState<GuestProfile | null>(null);
+  const [isResearching, setIsResearching] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -104,6 +105,62 @@ export function GuestSelector({ selectedGuestId, onGuestSelect }: GuestSelectorP
     setNotableQuotes(guest.notableQuotes?.join('\n') || '');
     setVoiceId(guest.voiceId);
     setIsDialogOpen(true);
+  };
+
+  const handleResearchGuest = async () => {
+    if (!name.trim()) {
+      toast({
+        title: 'Name Required',
+        description: 'Enter a name to research.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsResearching(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/research-guest`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ name: name.trim() }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Research failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.profile) {
+        setDisplayName(data.profile.displayName || name.split(' ')[0]);
+        setBio(data.profile.bio || '');
+        setExpertise(data.profile.expertise?.join(', ') || '');
+        setSpeakingStyle(data.profile.speakingStyle || '');
+        setNotableQuotes(data.profile.notableQuotes?.join('\n') || '');
+        
+        toast({
+          title: 'Profile Researched',
+          description: `Found information about ${name}. Review and save when ready.`,
+        });
+      }
+    } catch (error) {
+      console.error('Research error:', error);
+      toast({
+        title: 'Research Failed',
+        description: error instanceof Error ? error.message : 'Could not research this person.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsResearching(false);
+    }
   };
 
   const handleSaveGuest = async () => {
@@ -209,12 +266,31 @@ export function GuestSelector({ selectedGuestId, onGuestSelect }: GuestSelectorP
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., Sean Ryan"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Sean Ryan"
+                    className="flex-1"
+                  />
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    onClick={handleResearchGuest}
+                    disabled={isResearching || !name.trim()}
+                    className="shrink-0"
+                  >
+                    {isResearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Enter a real person's name and click search to auto-fill their profile
+                </p>
               </div>
               
               <div className="space-y-2">
