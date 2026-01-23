@@ -44,6 +44,56 @@ export type Database = {
         }
         Relationships: []
       }
+      episode_feedback: {
+        Row: {
+          created_at: string
+          episode_id: string
+          id: string
+          pacing_feedback: string | null
+          rating: number
+          story_quality_feedback: string | null
+          tone_feedback: string | null
+          updated_at: string
+          user_id: string
+          what_didnt_work: string | null
+          what_worked: string | null
+        }
+        Insert: {
+          created_at?: string
+          episode_id: string
+          id?: string
+          pacing_feedback?: string | null
+          rating: number
+          story_quality_feedback?: string | null
+          tone_feedback?: string | null
+          updated_at?: string
+          user_id: string
+          what_didnt_work?: string | null
+          what_worked?: string | null
+        }
+        Update: {
+          created_at?: string
+          episode_id?: string
+          id?: string
+          pacing_feedback?: string | null
+          rating?: number
+          story_quality_feedback?: string | null
+          tone_feedback?: string | null
+          updated_at?: string
+          user_id?: string
+          what_didnt_work?: string | null
+          what_worked?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episode_feedback_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       episodes: {
         Row: {
           audio_url: string | null

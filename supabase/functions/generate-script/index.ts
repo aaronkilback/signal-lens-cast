@@ -405,9 +405,10 @@ IMPORTANT: Use these real stories as inspiration. You can:
       }
     }
 
-    // Fetch doctrine documents and episode history for context
+    // Fetch doctrine documents, episode history, and feedback for context
     let doctrineContext = "";
     let episodeHistory = "";
+    let feedbackContext = "";
     
     if (userId) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -473,6 +474,43 @@ CONTINUITY INSTRUCTIONS:
 - If this is the first episode, establish recurring elements for future episodes`;
           }
         }
+
+        // Fetch feedback patterns to learn from
+        const feedbackResponse = await fetch(
+          `${supabaseUrl}/rest/v1/episode_feedback?user_id=eq.${userId}&order=created_at.desc&limit=20&select=rating,what_worked,what_didnt_work`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+          }
+        );
+
+        if (feedbackResponse.ok) {
+          const feedbackList = await feedbackResponse.json();
+          if (feedbackList.length > 0) {
+            const avgRating = feedbackList.reduce((sum: number, f: any) => sum + f.rating, 0) / feedbackList.length;
+            const workedPatterns = feedbackList
+              .filter((f: any) => f.what_worked && f.rating >= 4)
+              .map((f: any) => f.what_worked)
+              .slice(0, 5);
+            const improvementPatterns = feedbackList
+              .filter((f: any) => f.what_didnt_work)
+              .map((f: any) => f.what_didnt_work)
+              .slice(0, 5);
+            
+            feedbackContext = `\n\nLEARNING FROM PAST FEEDBACK (Use this to improve):
+Average rating: ${avgRating.toFixed(1)}/5 across ${feedbackList.length} episodes
+
+${workedPatterns.length > 0 ? `WHAT WORKS WELL (Keep doing this):
+${workedPatterns.map((w: string) => `- ${w}`).join("\n")}` : ""}
+
+${improvementPatterns.length > 0 ? `AREAS TO IMPROVE (Address these):
+${improvementPatterns.map((i: string) => `- ${i}`).join("\n")}` : ""}
+
+Apply these learnings to make this episode even better than previous ones.`;
+          }
+        }
       }
     }
 
@@ -517,6 +555,7 @@ ${modeInstructions}
 ${researchContext}
 ${doctrineContext}
 ${episodeHistory}
+${feedbackContext}
 
 MANDATORY CLOSING CTA (include this EXACTLY at the end of every episode):
 ${AEGIS_CTA}
