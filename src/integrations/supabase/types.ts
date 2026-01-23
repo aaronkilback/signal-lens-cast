@@ -101,6 +101,7 @@ export type Database = {
           created_at: string
           episode_number: number
           episode_summary: string | null
+          guest_id: string | null
           id: string
           key_stories: string[] | null
           output_mode: string
@@ -122,6 +123,7 @@ export type Database = {
           created_at?: string
           episode_number?: number
           episode_summary?: string | null
+          guest_id?: string | null
           id?: string
           key_stories?: string[] | null
           output_mode?: string
@@ -143,6 +145,7 @@ export type Database = {
           created_at?: string
           episode_number?: number
           episode_summary?: string | null
+          guest_id?: string | null
           id?: string
           key_stories?: string[] | null
           output_mode?: string
@@ -157,6 +160,56 @@ export type Database = {
           topic?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episodes_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guest_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_profiles: {
+        Row: {
+          bio: string
+          created_at: string
+          display_name: string
+          expertise: string[]
+          id: string
+          name: string
+          notable_quotes: string[] | null
+          speaking_style: string | null
+          updated_at: string
+          user_id: string
+          voice_id: string
+        }
+        Insert: {
+          bio: string
+          created_at?: string
+          display_name: string
+          expertise?: string[]
+          id?: string
+          name: string
+          notable_quotes?: string[] | null
+          speaking_style?: string | null
+          updated_at?: string
+          user_id: string
+          voice_id?: string
+        }
+        Update: {
+          bio?: string
+          created_at?: string
+          display_name?: string
+          expertise?: string[]
+          id?: string
+          name?: string
+          notable_quotes?: string[] | null
+          speaking_style?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_id?: string
         }
         Relationships: []
       }
