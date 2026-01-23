@@ -295,16 +295,22 @@ export default function Generate() {
     });
   };
 
-  const handleToggleEdit = () => {
+  const handleToggleEdit = async () => {
     if (isEditing) {
       // Save edits
       setGeneratedScript(editableScript);
+      setIsEditing(false);
+      
       toast({
         title: 'Script Updated',
-        description: 'Your edits have been saved.',
+        description: 'Regenerating audio with your edits...',
       });
+      
+      // Auto-regenerate audio with edited script
+      await handleGenerateAudio();
+    } else {
+      setIsEditing(true);
     }
-    setIsEditing(!isEditing);
   };
 
   const handleSaveEpisode = async () => {
