@@ -525,7 +525,7 @@ export default function Generate() {
         console.warn('Could not extract metadata:', metaError);
       }
 
-      const { data, error } = await supabase.from('episodes').insert({
+      const episodeData = {
         user_id: user.id,
         title: config.topic.slice(0, 100),
         topic: config.topic,
@@ -540,19 +540,45 @@ export default function Generate() {
         people_mentioned: metadata.people_mentioned,
         themes: metadata.themes,
         episode_summary: metadata.episode_summary,
-      }).select('id').single();
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      let episodeId = currentEpisodeId;
 
-      // Track the episode ID so marketing assets can be saved
-      if (data?.id) {
-        setCurrentEpisodeId(data.id);
+      if (currentEpisodeId) {
+        // Update existing episode
+        const { error } = await supabase
+          .from('episodes')
+          .update(episodeData)
+          .eq('id', currentEpisodeId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Episode Updated',
+          description: `Saved at ${new Date().toLocaleTimeString()}`,
+        });
+      } else {
+        // Create new episode
+        const { data, error } = await supabase
+          .from('episodes')
+          .insert(episodeData)
+          .select('id')
+          .single();
+
+        if (error) throw error;
+
+        if (data?.id) {
+          episodeId = data.id;
+          setCurrentEpisodeId(data.id);
+        }
+
+        toast({
+          title: 'Episode Saved',
+          description: 'Added to your intelligence library.',
+        });
       }
-
-      toast({
-        title: 'Episode Saved',
-        description: 'Added to your intelligence library. Marketing assets will now persist.',
-      });
     } catch (error) {
       console.error('Save error:', error);
       toast({
