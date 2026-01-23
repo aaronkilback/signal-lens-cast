@@ -202,12 +202,18 @@ export default function Generate() {
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialState.selectedGuestId || null);
   const [selectedGuest, setSelectedGuest] = useState<GuestProfile | null>(null);
   
-  // Use refs to always have current values for beforeunload
+  // Use refs to always have current values for beforeunload and audio generation
   const stateRef = useRef({ config, generatedScript, editableScript, toneValue, selectedGuestId });
+  const editableScriptRef = useRef(editableScript);
   
   useEffect(() => {
     stateRef.current = { config, generatedScript, editableScript, toneValue, selectedGuestId };
   }, [config, generatedScript, editableScript, toneValue, selectedGuestId]);
+  
+  // Keep editableScript ref always in sync for audio generation
+  useEffect(() => {
+    editableScriptRef.current = editableScript;
+  }, [editableScript]);
 
   // Fetch selected guest data when guest ID changes
   useEffect(() => {
@@ -534,8 +540,8 @@ export default function Generate() {
 
   const handleToggleEdit = async () => {
     if (isEditing) {
-      // Capture the edited script before state changes
-      const editedScript = editableScript;
+      // Use ref to get the absolute latest value, avoiding stale closure issues
+      const editedScript = editableScriptRef.current;
       
       // Save edits
       setGeneratedScript(editedScript);
