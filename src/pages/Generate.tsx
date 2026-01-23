@@ -3,6 +3,7 @@ import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save, Plus } f
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarketingAssets } from '@/components/MarketingAssets';
+import { EpisodeFeedback } from '@/components/EpisodeFeedback';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -859,6 +860,11 @@ export default function Generate() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Feedback Section - Show after episode is saved */}
+            {currentEpisodeId && (
+              <EpisodeFeedback episodeId={currentEpisodeId} />
+            )}
 
             {/* Marketing Assets Section */}
             <MarketingAssets 
