@@ -343,17 +343,23 @@ export default function Generate() {
           if (line.startsWith('data: ')) {
             const jsonStr = line.slice(6).trim();
             if (jsonStr === '[DONE]') continue;
+            if (!jsonStr) continue;
             
             try {
               const parsed = JSON.parse(jsonStr);
-              const content = parsed.choices?.[0]?.delta?.content;
+              // Support both OpenAI format and potential variations
+              const content = parsed.choices?.[0]?.delta?.content 
+                || parsed.choices?.[0]?.message?.content
+                || parsed.content
+                || parsed.text;
               if (content) {
                 script += content;
                 setGeneratedScript(script);
                 setEditableScript(script);
               }
-            } catch {
-              // Partial JSON, continue
+            } catch (e) {
+              // Log parsing errors for debugging
+              console.log('SSE parse chunk:', jsonStr.substring(0, 100));
             }
           }
         }
