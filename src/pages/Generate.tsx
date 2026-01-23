@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save } from 'lucide-react';
+import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarketingAssets } from '@/components/MarketingAssets';
@@ -239,6 +239,34 @@ export default function Generate() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [forceSave, isEditing, editableScript, generatedScript]);
+
+  const handleNewEpisode = () => {
+    // Clear all state for a fresh episode
+    setConfig({
+      topic: '',
+      targetAudience: 'executives',
+      lifeDomains: ['executive_travel', 'family_legacy', 'digital_privacy'],
+      contentLength: 10,
+      toneIntensity: 'strategic',
+      outputMode: 'podcast_script',
+      voice: 'onyx',
+    });
+    setGeneratedScript('');
+    setEditableScript('');
+    setIsEditing(false);
+    setAudioUrl(null);
+    setAudioBlob(null);
+    setToneValue([50]);
+    setCurrentEpisodeId(null);
+    
+    // Clear localStorage for fresh start
+    localStorage.removeItem(STORAGE_KEY);
+    
+    toast({
+      title: 'Ready for New Episode',
+      description: 'All fields cleared. Start creating your next episode.',
+    });
+  };
 
   const handleToneChange = (value: number[]) => {
     setToneValue(value);
@@ -545,14 +573,25 @@ export default function Generate() {
               </div>
               <h1 className="font-serif text-3xl font-semibold">Content Generator</h1>
             </div>
-            {lastSaved && (generatedScript || editableScript) && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Save className="h-3 w-3" />
-                <span>Draft saved {lastSaved.toLocaleTimeString()}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleNewEpisode}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                New Episode
+              </Button>
+              {lastSaved && (generatedScript || editableScript) && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Save className="h-3 w-3" />
+                  <span>Draft saved {lastSaved.toLocaleTimeString()}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mt-2">
             Configure Aegis parameters to generate strategic intelligence content.
           </p>
         </div>
