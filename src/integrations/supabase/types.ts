@@ -49,12 +49,17 @@ export type Database = {
           audio_url: string | null
           content_length: number
           created_at: string
+          episode_number: number
+          episode_summary: string | null
           id: string
+          key_stories: string[] | null
           output_mode: string
+          people_mentioned: string[] | null
           risk_domains: string[]
           script_content: string | null
           status: string | null
           target_audience: string
+          themes: string[] | null
           title: string
           tone_intensity: string
           topic: string
@@ -65,12 +70,17 @@ export type Database = {
           audio_url?: string | null
           content_length?: number
           created_at?: string
+          episode_number?: number
+          episode_summary?: string | null
           id?: string
+          key_stories?: string[] | null
           output_mode?: string
+          people_mentioned?: string[] | null
           risk_domains?: string[]
           script_content?: string | null
           status?: string | null
           target_audience: string
+          themes?: string[] | null
           title: string
           tone_intensity?: string
           topic: string
@@ -81,12 +91,17 @@ export type Database = {
           audio_url?: string | null
           content_length?: number
           created_at?: string
+          episode_number?: number
+          episode_summary?: string | null
           id?: string
+          key_stories?: string[] | null
           output_mode?: string
+          people_mentioned?: string[] | null
           risk_domains?: string[]
           script_content?: string | null
           status?: string | null
           target_audience?: string
+          themes?: string[] | null
           title?: string
           tone_intensity?: string
           topic?: string
