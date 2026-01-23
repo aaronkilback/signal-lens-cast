@@ -215,6 +215,13 @@ export default function Generate() {
     editableScriptRef.current = editableScript;
   }, [editableScript]);
 
+  // Prevent memory leaks + ensure old audio blobs don't stick around in the player
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
   // Fetch selected guest data when guest ID changes
   useEffect(() => {
     const fetchGuest = async () => {
@@ -437,7 +444,9 @@ export default function Generate() {
   };
 
   const handleGenerateAudio = async (scriptOverride?: string) => {
-    const scriptToUse = scriptOverride || (isEditing ? editableScript : generatedScript);
+    // When generating while editing (without saving), rely on the ref so we never send stale text.
+    const scriptToUse =
+      scriptOverride ?? (isEditing ? editableScriptRef.current : generatedScript);
     
     if (!scriptToUse) {
       toast({
@@ -928,7 +937,8 @@ export default function Generate() {
               <CardContent>
                 {audioUrl && (
                   <div className="mb-4 p-4 bg-accent rounded-lg">
-                    <audio controls className="w-full">
+                    {/* key forces a remount so the browser reloads the updated source */}
+                    <audio key={audioUrl} controls className="w-full">
                       <source src={audioUrl} type="audio/mpeg" />
                     </audio>
                   </div>
