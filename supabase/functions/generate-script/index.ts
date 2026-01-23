@@ -328,12 +328,52 @@ serve(async (req) => {
   }
 
   try {
-    const { config, userId } = await req.json();
+    const { config, userId, guest } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    // Build guest context for dialogue episodes
+    let guestContext = "";
+    let dialogueInstructions = "";
+    
+    if (guest) {
+      guestContext = `
+GUEST FOR THIS EPISODE: ${guest.name}
+Display Name: ${guest.displayName}
+Bio: ${guest.bio}
+Areas of Expertise: ${guest.expertise?.join(", ") || "General security and protection"}
+Speaking Style: ${guest.speakingStyle || "Direct, conversational, asks probing questions"}
+Notable Phrases: ${guest.notableQuotes?.join("; ") || "None specified"}`;
+
+      dialogueInstructions = `
+=== DIALOGUE FORMAT INSTRUCTIONS ===
+
+This is a CONVERSATION between Aegis and ${guest.displayName}. Write it as natural back-and-forth dialogue.
+
+CRITICAL FORMATTING FOR MULTI-VOICE AUDIO:
+- Mark Aegis's lines with [AEGIS]: at the start
+- Mark ${guest.displayName}'s lines with [${guest.displayName.toUpperCase()}]: at the start
+- These speaker labels will be used to assign different voices in audio generation
+- Each speaker turn should be its own paragraph
+
+DIALOGUE DYNAMICS:
+- Aegis is the host, guiding the conversation and bringing in intelligence/stories
+- ${guest.displayName} brings real-world experience and asks probing questions
+- Let them interrupt each other naturally, build on each other's points
+- Include moments of agreement AND respectful pushback
+- ${guest.displayName} should sound like themselves based on their speaking style
+
+EXAMPLE FLOW:
+[AEGIS]: So I've been thinking about this case that came across my desk...
+[${guest.displayName.toUpperCase()}]: Hold on. Before you get into that—I want to ask you something.
+[AEGIS]: Sure, what's on your mind?
+[${guest.displayName.toUpperCase()}]: When you say "came across your desk"—where is this intelligence actually coming from?
+
+Keep it natural. Let the conversation breathe. Don't script it too tightly.`;
     }
 
     // Research real stories using Perplexity
@@ -552,6 +592,8 @@ TONE: ${config.toneIntensity} (${
     })
 
 ${modeInstructions}
+${guestContext}
+${dialogueInstructions}
 ${researchContext}
 ${doctrineContext}
 ${episodeHistory}
@@ -562,13 +604,14 @@ ${AEGIS_CTA}
 
 CRITICAL REMINDER - TTS-READY OUTPUT:
 - Write ONLY the exact words to be spoken aloud
-- NO brackets, NO stage directions, NO sound effects, NO production notes
+- NO brackets OTHER THAN speaker labels [AEGIS]: and [GUEST]: for dialogue episodes
+- NO stage directions, NO sound effects, NO production notes
 - NO markdown formatting (no ##, no **, no ---)
 - Create atmosphere through vivid spoken description, never through annotations
 - Every word you write will be read directly by text-to-speech
 - The output must be a polished, speakable podcast script ready for audio conversion
 
-You are Aegis. Paint the destination. Transfer certainty. End with the CTA verbatim.`;
+You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation.` : ""} Paint the destination. Transfer certainty. End with the CTA verbatim.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

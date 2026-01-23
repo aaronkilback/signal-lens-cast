@@ -24,6 +24,17 @@ export type OutputMode =
 
 export type VoiceOption = 'onyx' | 'echo' | 'alloy' | 'fable' | 'nova' | 'shimmer';
 
+export interface GuestProfile {
+  id: string;
+  name: string;
+  displayName: string;
+  bio: string;
+  expertise: string[];
+  speakingStyle?: string;
+  notableQuotes?: string[];
+  voiceId: VoiceOption;
+}
+
 export interface GenerationConfig {
   topic: string;
   targetAudience: TargetAudience;

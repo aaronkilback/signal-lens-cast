@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarketingAssets } from '@/components/MarketingAssets';
 import { EpisodeFeedback } from '@/components/EpisodeFeedback';
+import { GuestSelector } from '@/components/GuestSelector';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -26,6 +27,7 @@ import {
   ToneIntensity,
   OutputMode,
   VoiceOption,
+  GuestProfile,
   AUDIENCE_OPTIONS,
   LIFE_DOMAIN_OPTIONS,
   OUTPUT_MODE_OPTIONS,
@@ -46,6 +48,7 @@ interface PersistedState {
   editableScript: string;
   toneValue: number[];
   loadedEpisodeId?: string;
+  selectedGuestId?: string;
 }
 
 const RECOVERY_SCRIPT = `Think about this for a second.
@@ -196,13 +199,46 @@ export default function Generate() {
   const [toneValue, setToneValue] = useState(initialState.toneValue);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [currentEpisodeId, setCurrentEpisodeId] = useState<string | null>(initialState.loadedEpisodeId || null);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialState.selectedGuestId || null);
+  const [selectedGuest, setSelectedGuest] = useState<GuestProfile | null>(null);
   
   // Use refs to always have current values for beforeunload
-  const stateRef = useRef({ config, generatedScript, editableScript, toneValue });
+  const stateRef = useRef({ config, generatedScript, editableScript, toneValue, selectedGuestId });
   
   useEffect(() => {
-    stateRef.current = { config, generatedScript, editableScript, toneValue };
-  }, [config, generatedScript, editableScript, toneValue]);
+    stateRef.current = { config, generatedScript, editableScript, toneValue, selectedGuestId };
+  }, [config, generatedScript, editableScript, toneValue, selectedGuestId]);
+
+  // Fetch selected guest data when guest ID changes
+  useEffect(() => {
+    const fetchGuest = async () => {
+      if (!selectedGuestId || !user) {
+        setSelectedGuest(null);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('guest_profiles')
+        .select('*')
+        .eq('id', selectedGuestId)
+        .single();
+      
+      if (data) {
+        setSelectedGuest({
+          id: data.id,
+          name: data.name,
+          displayName: data.display_name,
+          bio: data.bio,
+          expertise: data.expertise || [],
+          speakingStyle: data.speaking_style || undefined,
+          notableQuotes: data.notable_quotes || undefined,
+          voiceId: (data.voice_id || 'echo') as VoiceOption,
+        });
+      }
+    };
+    
+    fetchGuest();
+  }, [selectedGuestId, user]);
 
   // Force save function for critical moments
   const forceSave = useCallback(() => {
@@ -218,10 +254,11 @@ export default function Generate() {
       generatedScript,
       editableScript,
       toneValue,
+      selectedGuestId: selectedGuestId || undefined,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     setLastSaved(new Date());
-  }, [config, generatedScript, editableScript, toneValue]);
+  }, [config, generatedScript, editableScript, toneValue, selectedGuestId]);
 
   // Critical: Force save before page unload
   useEffect(() => {
@@ -259,6 +296,8 @@ export default function Generate() {
     setAudioBlob(null);
     setToneValue([50]);
     setCurrentEpisodeId(null);
+    setSelectedGuestId(null);
+    setSelectedGuest(null);
     
     // Clear localStorage for fresh start
     localStorage.removeItem(STORAGE_KEY);
@@ -310,13 +349,23 @@ export default function Generate() {
     setCurrentEpisodeId(null);
 
     try {
+      const requestBody: { config: GenerationConfig; userId?: string; guest?: GuestProfile } = {
+        config,
+        userId: user?.id,
+      };
+      
+      // Include guest info for dialogue episodes
+      if (selectedGuest) {
+        requestBody.guest = selectedGuest;
+      }
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-script`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ config, userId: user?.id }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -396,16 +445,25 @@ export default function Generate() {
     setIsGeneratingAudio(true);
 
     try {
+      // Build audio request with guest info for multi-voice
+      const audioRequest: { text: string; voice: string; guestVoice?: string; guestName?: string } = {
+        text: scriptToUse,
+        voice: config.voice || 'onyx',
+      };
+      
+      // Add guest voice info for dialogue scripts
+      if (selectedGuest) {
+        audioRequest.guestVoice = selectedGuest.voiceId;
+        audioRequest.guestName = selectedGuest.displayName;
+      }
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audio`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({
-          text: scriptToUse,
-          voice: config.voice || 'onyx',
-        }),
+        body: JSON.stringify(audioRequest),
       });
 
       if (!response.ok) {
@@ -667,6 +725,12 @@ export default function Generate() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Guest Selector */}
+                <GuestSelector
+                  selectedGuestId={selectedGuestId}
+                  onGuestSelect={setSelectedGuestId}
+                />
               </CardContent>
             </Card>
 
