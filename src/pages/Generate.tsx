@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,28 +36,66 @@ const toneLabels: Record<number, ToneIntensity> = {
   100: 'commanding',
 };
 
+const STORAGE_KEY = 'aegis-generate-state';
+
+interface PersistedState {
+  config: GenerationConfig;
+  generatedScript: string;
+  editableScript: string;
+  toneValue: number[];
+}
+
+const getInitialState = (): PersistedState => {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('Failed to load persisted state:', e);
+  }
+  return {
+    config: {
+      topic: '',
+      targetAudience: 'executives',
+      lifeDomains: ['executive_travel'],
+      contentLength: 10,
+      toneIntensity: 'strategic',
+      outputMode: 'full_episode',
+      voice: 'onyx',
+    },
+    generatedScript: '',
+    editableScript: '',
+    toneValue: [50],
+  };
+};
+
 export default function Generate() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const [config, setConfig] = useState<GenerationConfig>({
-    topic: '',
-    targetAudience: 'executives',
-    lifeDomains: ['executive_travel'],
-    contentLength: 10,
-    toneIntensity: 'strategic',
-    outputMode: 'full_episode',
-    voice: 'onyx',
-  });
+  const initialState = getInitialState();
   
-  const [generatedScript, setGeneratedScript] = useState('');
-  const [editableScript, setEditableScript] = useState('');
+  const [config, setConfig] = useState<GenerationConfig>(initialState.config);
+  const [generatedScript, setGeneratedScript] = useState(initialState.generatedScript);
+  const [editableScript, setEditableScript] = useState(initialState.editableScript);
   const [isEditing, setIsEditing] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const [toneValue, setToneValue] = useState([50]);
+  const [toneValue, setToneValue] = useState(initialState.toneValue);
+
+  // Persist state to sessionStorage
+  useEffect(() => {
+    const stateToSave: PersistedState = {
+      config,
+      generatedScript,
+      editableScript,
+      toneValue,
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+  }, [config, generatedScript, editableScript, toneValue]);
 
   const handleToneChange = (value: number[]) => {
     setToneValue(value);
