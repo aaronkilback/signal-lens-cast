@@ -44,6 +44,7 @@ interface PersistedState {
   generatedScript: string;
   editableScript: string;
   toneValue: number[];
+  loadedEpisodeId?: string;
 }
 
 const RECOVERY_SCRIPT = `Think about this for a second.
@@ -140,6 +141,7 @@ const getInitialState = (): PersistedState => {
     generatedScript: '',
     editableScript: '',
     toneValue: [50],
+    loadedEpisodeId: undefined,
   };
 
   try {
@@ -192,6 +194,7 @@ export default function Generate() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [toneValue, setToneValue] = useState(initialState.toneValue);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [currentEpisodeId, setCurrentEpisodeId] = useState<string | null>(initialState.loadedEpisodeId || null);
   
   // Use refs to always have current values for beforeunload
   const stateRef = useRef({ config, generatedScript, editableScript, toneValue });
@@ -275,6 +278,7 @@ export default function Generate() {
     setIsEditing(false);
     setAudioUrl(null);
     setAudioBlob(null);
+    setCurrentEpisodeId(null);
 
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-script`, {
@@ -492,7 +496,7 @@ export default function Generate() {
         console.warn('Could not extract metadata:', metaError);
       }
 
-      const { error } = await supabase.from('episodes').insert({
+      const { data, error } = await supabase.from('episodes').insert({
         user_id: user.id,
         title: config.topic.slice(0, 100),
         topic: config.topic,
@@ -507,13 +511,18 @@ export default function Generate() {
         people_mentioned: metadata.people_mentioned,
         themes: metadata.themes,
         episode_summary: metadata.episode_summary,
-      });
+      }).select('id').single();
 
       if (error) throw error;
 
+      // Track the episode ID so marketing assets can be saved
+      if (data?.id) {
+        setCurrentEpisodeId(data.id);
+      }
+
       toast({
         title: 'Episode Saved',
-        description: 'Added to your intelligence library.',
+        description: 'Added to your intelligence library. Marketing assets will now persist.',
       });
     } catch (error) {
       console.error('Save error:', error);
@@ -815,7 +824,8 @@ export default function Generate() {
             {/* Marketing Assets Section */}
             <MarketingAssets 
               script={isEditing ? editableScript : generatedScript} 
-              topic={config.topic} 
+              topic={config.topic}
+              episodeId={currentEpisodeId || undefined}
             />
           </div>
         </div>
