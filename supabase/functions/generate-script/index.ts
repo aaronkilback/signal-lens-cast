@@ -153,26 +153,26 @@ serve(async (req) => {
 
     // Build the prompt
     const audienceMap: Record<string, string> = {
-      energy_executives: "energy sector executives",
-      hnw_families: "high-net-worth families and their security teams",
-      soc_leaders: "Security Operations Center leaders",
-      corporate_risk_officers: "corporate risk officers and CROs",
-      government_decision_makers: "government decision makers and policy advisors",
-      security_directors: "physical and corporate security directors",
-      board_members: "board members and C-suite executives",
+      executives: "C-suite executives who want to move through the world with certainty",
+      hnw_families: "high-net-worth families building generational protection",
+      public_figures: "public figures and personalities managing visibility",
+      enterprise_leaders: "enterprise leaders ensuring operational continuity",
+      family_offices: "family offices protecting multi-generational wealth",
+      board_members: "board members making decisions from positions of strength",
     };
 
-    const riskDomainLabels: Record<string, string> = {
-      physical: "physical security",
-      cyber: "cybersecurity and digital threats",
-      reputational: "reputational risk and crisis management",
-      geopolitical: "geopolitical factors and international relations",
-      operational: "operational vulnerabilities and business continuity",
+    const lifeDomainLabels: Record<string, string> = {
+      executive_travel: "moving through the world with invisible protection layers",
+      family_legacy: "building generational security and continuity",
+      digital_privacy: "achieving sovereign control over digital presence",
+      public_presence: "managing visibility and reputation with absolute certainty",
+      business_continuity: "operations that never stop, no matter what arises",
+      residential_sanctuary: "transforming home into an uncompromised fortress",
     };
 
     const audience = audienceMap[config.targetAudience] || config.targetAudience;
-    const domains = config.riskDomains.map((d: string) => riskDomainLabels[d] || d).join(", ");
-    const modeInstructions = OUTPUT_MODE_INSTRUCTIONS[config.outputMode] || OUTPUT_MODE_INSTRUCTIONS.podcast_script;
+    const lifeDomains = (config.lifeDomains || config.riskDomains || []).map((d: string) => lifeDomainLabels[d] || d).join(", ");
+    const modeInstructions = OUTPUT_MODE_INSTRUCTIONS[config.outputMode] || OUTPUT_MODE_INSTRUCTIONS.full_episode;
 
     const userPrompt = `Generate a ${config.contentLength}-minute ${config.outputMode.replace(/_/g, " ")} on the following topic:
 
@@ -180,18 +180,18 @@ TOPIC: ${config.topic}
 
 TARGET AUDIENCE: ${audience}
 
-RISK DOMAINS TO ADDRESS: ${domains}
+LIFE DOMAINS TO ADDRESS (paint the protected future in these areas): ${lifeDomains}
 
 TONE: ${config.toneIntensity} (${
-      config.toneIntensity === "clinical" ? "measured, analytical, data-driven" :
-      config.toneIntensity === "strategic" ? "balanced authority with accessibility" :
-      "decisive, commanding, action-oriented"
+      config.toneIntensity === "clinical" ? "measured, analytical, precise certainty" :
+      config.toneIntensity === "strategic" ? "balanced authority with accessible confidence" :
+      "decisive, commanding, absolute conviction"
     })
 
 ${modeInstructions}
 ${doctrineContext}
 
-Remember: You are Aegis. Speak with calm authority. No hype, no filler. Strategic clarity is the mission.`;
+Remember: You are Aegis. You don't explain security—you help them feel what protected life looks like. Paint the destination. Transfer certainty. Embed doctrine through example, never explanation.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
