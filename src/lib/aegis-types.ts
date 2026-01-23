@@ -1,33 +1,33 @@
 export type TargetAudience =
-  | 'energy_executives'
+  | 'executives'
   | 'hnw_families'
-  | 'soc_leaders'
-  | 'corporate_risk_officers'
-  | 'government_decision_makers'
-  | 'security_directors'
+  | 'public_figures'
+  | 'enterprise_leaders'
+  | 'family_offices'
   | 'board_members';
 
-export type RiskDomain =
-  | 'physical'
-  | 'cyber'
-  | 'reputational'
-  | 'geopolitical'
-  | 'operational';
+export type LifeDomain =
+  | 'executive_travel'
+  | 'family_legacy'
+  | 'digital_privacy'
+  | 'public_presence'
+  | 'business_continuity'
+  | 'residential_sanctuary';
 
 export type ToneIntensity = 'clinical' | 'strategic' | 'commanding';
 
 export type OutputMode = 
-  | 'podcast_script' 
-  | 'executive_briefing' 
-  | 'field_intelligence' 
-  | 'narrative_story';
+  | 'full_episode' 
+  | 'executive_summary' 
+  | 'social_clip' 
+  | 'long_narrative';
 
 export type VoiceOption = 'onyx' | 'echo' | 'alloy' | 'fable' | 'nova' | 'shimmer';
 
 export interface GenerationConfig {
   topic: string;
   targetAudience: TargetAudience;
-  riskDomains: RiskDomain[];
+  lifeDomains: LifeDomain[];
   contentLength: 5 | 10 | 15;
   toneIntensity: ToneIntensity;
   outputMode: OutputMode;
@@ -35,28 +35,28 @@ export interface GenerationConfig {
 }
 
 export const AUDIENCE_OPTIONS: { value: TargetAudience; label: string }[] = [
-  { value: 'energy_executives', label: 'Energy Executives' },
+  { value: 'executives', label: 'C-Suite Executives' },
   { value: 'hnw_families', label: 'High-Net-Worth Families' },
-  { value: 'soc_leaders', label: 'SOC Leaders' },
-  { value: 'corporate_risk_officers', label: 'Corporate Risk Officers' },
-  { value: 'government_decision_makers', label: 'Government Decision Makers' },
-  { value: 'security_directors', label: 'Security Directors' },
+  { value: 'public_figures', label: 'Public Figures & Personalities' },
+  { value: 'enterprise_leaders', label: 'Enterprise Leaders' },
+  { value: 'family_offices', label: 'Family Offices' },
   { value: 'board_members', label: 'Board Members' },
 ];
 
-export const RISK_DOMAIN_OPTIONS: { value: RiskDomain; label: string; description: string }[] = [
-  { value: 'physical', label: 'Physical Security', description: 'Facility, personnel, and asset protection' },
-  { value: 'cyber', label: 'Cyber Threats', description: 'Digital infrastructure and data security' },
-  { value: 'reputational', label: 'Reputational Risk', description: 'Brand, public perception, and crisis' },
-  { value: 'geopolitical', label: 'Geopolitical Factors', description: 'International relations and political risk' },
-  { value: 'operational', label: 'Operational Vulnerabilities', description: 'Business continuity and process risks' },
+export const LIFE_DOMAIN_OPTIONS: { value: LifeDomain; label: string; description: string }[] = [
+  { value: 'executive_travel', label: 'Executive Travel', description: 'Moving through the world with invisible protection' },
+  { value: 'family_legacy', label: 'Family Legacy', description: 'Generational protection and continuity' },
+  { value: 'digital_privacy', label: 'Digital Privacy', description: 'Sovereign control over your digital footprint' },
+  { value: 'public_presence', label: 'Public Presence', description: 'Managing visibility and reputation with certainty' },
+  { value: 'business_continuity', label: 'Business Continuity', description: 'Operations that never stop, no matter what' },
+  { value: 'residential_sanctuary', label: 'Residential Sanctuary', description: 'Your home as an uncompromised fortress' },
 ];
 
 export const OUTPUT_MODE_OPTIONS: { value: OutputMode; label: string; description: string }[] = [
-  { value: 'podcast_script', label: 'Podcast Script', description: 'Full 7-section episode format' },
-  { value: 'executive_briefing', label: 'Executive Briefing', description: 'Condensed, decision-focused' },
-  { value: 'field_intelligence', label: 'Field Intelligence', description: 'Tactical, operational focus' },
-  { value: 'narrative_story', label: 'Narrative Story', description: 'Long-form storytelling approach' },
+  { value: 'full_episode', label: 'Full Episode', description: 'Complete 7-section future-paced episode' },
+  { value: 'executive_summary', label: 'Executive Summary', description: 'Condensed insight for decision-makers' },
+  { value: 'social_clip', label: 'Social Clip', description: 'Punchy excerpt for LinkedIn/social sharing' },
+  { value: 'long_narrative', label: 'Long-Form Narrative', description: 'Deep storytelling for premium content' },
 ];
 
 export const VOICE_OPTIONS: { value: VoiceOption; label: string; description: string }[] = [

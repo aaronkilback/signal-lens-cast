@@ -21,12 +21,12 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   GenerationConfig,
   TargetAudience,
-  RiskDomain,
+  LifeDomain,
   ToneIntensity,
   OutputMode,
   VoiceOption,
   AUDIENCE_OPTIONS,
-  RISK_DOMAIN_OPTIONS,
+  LIFE_DOMAIN_OPTIONS,
   OUTPUT_MODE_OPTIONS,
   VOICE_OPTIONS,
 } from '@/lib/aegis-types';
@@ -43,11 +43,11 @@ export default function Generate() {
   
   const [config, setConfig] = useState<GenerationConfig>({
     topic: '',
-    targetAudience: 'corporate_risk_officers',
-    riskDomains: ['cyber'],
+    targetAudience: 'executives',
+    lifeDomains: ['executive_travel'],
     contentLength: 10,
     toneIntensity: 'strategic',
-    outputMode: 'podcast_script',
+    outputMode: 'full_episode',
     voice: 'onyx',
   });
   
@@ -63,11 +63,11 @@ export default function Generate() {
     setConfig({ ...config, toneIntensity: tone });
   };
 
-  const handleRiskDomainToggle = (domain: RiskDomain) => {
-    const newDomains = config.riskDomains.includes(domain)
-      ? config.riskDomains.filter(d => d !== domain)
-      : [...config.riskDomains, domain];
-    setConfig({ ...config, riskDomains: newDomains });
+  const handleLifeDomainToggle = (domain: LifeDomain) => {
+    const newDomains = config.lifeDomains.includes(domain)
+      ? config.lifeDomains.filter(d => d !== domain)
+      : [...config.lifeDomains, domain];
+    setConfig({ ...config, lifeDomains: newDomains });
   };
 
   const handleGenerate = async () => {
@@ -80,10 +80,10 @@ export default function Generate() {
       return;
     }
 
-    if (config.riskDomains.length === 0) {
+    if (config.lifeDomains.length === 0) {
       toast({
-        title: 'Risk Domain Required',
-        description: 'Please select at least one risk domain.',
+        title: 'Life Domain Required',
+        description: 'Please select at least one life domain.',
         variant: 'destructive',
       });
       return;
@@ -217,7 +217,7 @@ export default function Generate() {
         title: config.topic.slice(0, 100),
         topic: config.topic,
         target_audience: config.targetAudience,
-        risk_domains: config.riskDomains,
+        risk_domains: config.lifeDomains,
         content_length: config.contentLength,
         tone_intensity: config.toneIntensity,
         output_mode: config.outputMode,
@@ -299,17 +299,17 @@ export default function Generate() {
 
             <Card className="aegis-card">
               <CardHeader>
-                <CardTitle>Risk Domains</CardTitle>
-                <CardDescription>Select relevant security domains</CardDescription>
+                <CardTitle>Life Domains</CardTitle>
+                <CardDescription>Select the areas of life to address</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {RISK_DOMAIN_OPTIONS.map((domain) => (
+                  {LIFE_DOMAIN_OPTIONS.map((domain) => (
                     <div key={domain.value} className="flex items-start space-x-3">
                       <Checkbox
                         id={domain.value}
-                        checked={config.riskDomains.includes(domain.value)}
-                        onCheckedChange={() => handleRiskDomainToggle(domain.value)}
+                        checked={config.lifeDomains.includes(domain.value)}
+                        onCheckedChange={() => handleLifeDomainToggle(domain.value)}
                       />
                       <div className="grid gap-1 leading-none">
                         <Label htmlFor={domain.value} className="cursor-pointer">
