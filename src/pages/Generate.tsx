@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Mic, Loader2, Volume2 } from 'lucide-react';
+import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,7 +51,10 @@ export default function Generate() {
   });
   
   const [generatedScript, setGeneratedScript] = useState('');
+  const [editableScript, setEditableScript] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [toneValue, setToneValue] = useState([50]);
@@ -91,7 +93,10 @@ export default function Generate() {
 
     setIsGenerating(true);
     setGeneratedScript('');
+    setEditableScript('');
+    setIsEditing(false);
     setAudioUrl(null);
+    setAudioBlob(null);
 
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-script`, {
@@ -134,6 +139,7 @@ export default function Generate() {
               if (content) {
                 script += content;
                 setGeneratedScript(script);
+                setEditableScript(script);
               }
             } catch {
               // Partial JSON, continue
@@ -159,7 +165,9 @@ export default function Generate() {
   };
 
   const handleGenerateAudio = async () => {
-    if (!generatedScript) {
+    const scriptToUse = isEditing ? editableScript : generatedScript;
+    
+    if (!scriptToUse) {
       toast({
         title: 'No Script',
         description: 'Generate a script first before creating audio.',
@@ -178,7 +186,7 @@ export default function Generate() {
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
-          text: generatedScript,
+          text: scriptToUse,
           voice: config.voice || 'onyx',
         }),
       });
@@ -188,8 +196,9 @@ export default function Generate() {
         throw new Error(errorData.error || 'Failed to generate audio');
       }
 
-      const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioBlob(blob);
       setAudioUrl(url);
 
       toast({
@@ -208,8 +217,61 @@ export default function Generate() {
     }
   };
 
+  const handleDownloadScript = () => {
+    const scriptToDownload = isEditing ? editableScript : generatedScript;
+    if (!scriptToDownload) return;
+
+    const filename = `aegis-${config.topic.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.txt`;
+    const blob = new Blob([scriptToDownload], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Script Downloaded',
+      description: `Saved as ${filename}`,
+    });
+  };
+
+  const handleDownloadAudio = () => {
+    if (!audioBlob) return;
+
+    const filename = `aegis-${config.topic.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.mp3`;
+    const url = URL.createObjectURL(audioBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Audio Downloaded',
+      description: `Saved as ${filename} — Ready for Buzzsprout upload.`,
+    });
+  };
+
+  const handleToggleEdit = () => {
+    if (isEditing) {
+      // Save edits
+      setGeneratedScript(editableScript);
+      toast({
+        title: 'Script Updated',
+        description: 'Your edits have been saved.',
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
   const handleSaveEpisode = async () => {
-    if (!generatedScript || !user) return;
+    const scriptToSave = isEditing ? editableScript : generatedScript;
+    if (!scriptToSave || !user) return;
 
     try {
       const { error } = await supabase.from('episodes').insert({
@@ -221,7 +283,7 @@ export default function Generate() {
         content_length: config.contentLength,
         tone_intensity: config.toneIntensity,
         output_mode: config.outputMode,
-        script_content: generatedScript,
+        script_content: scriptToSave,
         status: 'completed',
       });
 
@@ -435,7 +497,7 @@ export default function Generate() {
                     <CardTitle>Generated Content</CardTitle>
                     <CardDescription>Aegis intelligence output</CardDescription>
                   </div>
-                  {generatedScript && (
+                {generatedScript && (
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={handleSaveEpisode}>
                         Save
@@ -443,8 +505,24 @@ export default function Generate() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={handleToggleEdit}
+                      >
+                        {isEditing ? <Check className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadScript}
+                        title="Download Script"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={handleGenerateAudio}
                         disabled={isGeneratingAudio}
+                        title="Generate Audio"
                       >
                         {isGeneratingAudio ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -452,6 +530,16 @@ export default function Generate() {
                           <Volume2 className="h-4 w-4" />
                         )}
                       </Button>
+                      {audioBlob && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadAudio}
+                          title="Download Audio for Buzzsprout"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -466,11 +554,20 @@ export default function Generate() {
                 )}
                 
                 {generatedScript ? (
-                  <div className="prose prose-invert max-w-none">
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground bg-transparent p-0">
-                      {generatedScript}
-                    </pre>
-                  </div>
+                  isEditing ? (
+                    <Textarea
+                      value={editableScript}
+                      onChange={(e) => setEditableScript(e.target.value)}
+                      className="min-h-[500px] font-sans text-sm leading-relaxed bg-background resize-none"
+                      placeholder="Edit your script here..."
+                    />
+                  ) : (
+                    <div className="prose prose-invert max-w-none">
+                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground bg-transparent p-0">
+                        {generatedScript}
+                      </pre>
+                    </div>
+                  )
                 ) : (
                   <div className="flex flex-col items-center justify-center h-96 text-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
