@@ -42,6 +42,56 @@ STYLE RULES:
 The goal is not entertainment or education.
 The goal is psychological transformation—from anxiety to certainty, from reactive to proactive, from exposed to fortified.`;
 
+const AEGIS_CTA = `
+
+---
+
+(Aegis voice — calm, low-ego, deliberate)
+
+There is a certain type of leader
+who never waits for permission to act.
+
+You are the person people call
+when things quietly start to drift toward chaos.
+
+But if you are honest,
+you already know something most people do not:
+
+Reaction is expensive.
+Certainty is rare.
+And visibility without control is exposure.
+
+The fortified do not outsource awareness.
+They do not rely on luck.
+They do not wait for crises to clarify priorities.
+
+They build themselves into the system.
+
+They harden their posture.
+Tighten their loops.
+And move from reaction to readiness
+long before the world realizes something is wrong.
+
+Inside Silent Shield,
+a small group of strategic leaders are quietly doing exactly that.
+
+Not to feel safer.
+But to become harder to surprise.
+
+If this resonates,
+do not comment.
+Do not broadcast.
+
+There is a link in the show notes that opens a direct, encrypted chat with me. One tap, send the word 'FORTIFIED', and we start the briefing.
+
+No pitch.
+No noise.
+Just a conversation about whether your current posture matches the level of responsibility you actually carry.
+
+This is Aegis.
+
+Fortune favours the fortified.`;
+
 const OUTPUT_MODE_INSTRUCTIONS: Record<string, string> = {
   podcast_script: `FORMAT: Future-Paced Podcast Episode (7 Sections)
 
@@ -70,8 +120,8 @@ Weave in Silent Shield principles through action, not explanation:
 6. THE BRIDGE
 Give them the next step. Not a sales pitch—a decision point. "Leaders who operate at this level made a choice. They decided uncertainty was no longer acceptable." Transfer your certainty to them.
 
-7. CLOSING SIGNAL
-End with calm authority. Leave them in the future state. "This is what protected feels like. And it's waiting."`,
+7. CLOSING SIGNAL (CALL TO ACTION)
+End with the standard Aegis CTA — calm, low-ego, deliberate. This is provided separately and MUST be included verbatim at the end.`,
 
   executive_briefing: `FORMAT: Future-State Executive Briefing
 
@@ -82,6 +132,7 @@ Structure as destination-focused intelligence:
 - THE GAP: What's missing between here and there (embedded, not explained)
 - THE PATH: How protected leaders have already solved this (example-driven)
 - YOUR MOVE: One decision that changes their trajectory
+- CLOSING: End with the standard Aegis CTA provided separately.
 
 Every word sells the destination. Doctrine is embedded, never taught.`,
 
@@ -94,6 +145,7 @@ Structure as tactical transformation:
 - SIGNAL ADVANTAGE: What they'll see that others miss
 - EMBEDDED POSTURE: How this integrates into existing operations
 - CERTAINTY TRANSFER: The confidence they gain
+- CLOSING: End with the standard Aegis CTA provided separately.
 
 Focus on operational transformation, not threat education.`,
 
@@ -106,6 +158,7 @@ Create immersive future-pacing through story:
 - Show the invisible architecture that changed everything (embedded doctrine)
 - Return to the future state with deeper appreciation
 - Close with the listener in the story: "This could be you."
+- End with the standard Aegis CTA provided separately.
 
 The story IS the sales mechanism. Make them live in the outcome.`,
 };
@@ -191,7 +244,10 @@ TONE: ${config.toneIntensity} (${
 ${modeInstructions}
 ${doctrineContext}
 
-Remember: You are Aegis. You don't explain security—you help them feel what protected life looks like. Paint the destination. Transfer certainty. Embed doctrine through example, never explanation.`;
+MANDATORY CLOSING CTA (include this EXACTLY at the end of every episode):
+${AEGIS_CTA}
+
+Remember: You are Aegis. You don't explain security—you help them feel what protected life looks like. Paint the destination. Transfer certainty. Embed doctrine through example, never explanation. ALWAYS end with the CTA above, verbatim.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
