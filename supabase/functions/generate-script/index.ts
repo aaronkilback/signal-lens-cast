@@ -330,9 +330,79 @@ serve(async (req) => {
   try {
     const { config, userId } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    // Research real stories using Perplexity
+    let researchContext = "";
+    
+    if (PERPLEXITY_API_KEY && config.topic) {
+      console.log("Researching real stories for topic:", config.topic);
+      
+      try {
+        // Search for real incidents and stories related to the topic
+        const searchQueries = [
+          `real cases ${config.topic} executives security breach incident`,
+          `${config.topic} high net worth family security threat news`,
+          `corporate ${config.topic} security incident case study recent`,
+        ];
+        
+        const researchResults: string[] = [];
+        
+        for (const query of searchQueries.slice(0, 2)) { // Limit to 2 searches
+          const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "sonar",
+              messages: [
+                { 
+                  role: "system", 
+                  content: "You are a research assistant. Provide brief, factual summaries of real incidents, cases, or news stories. Include names, dates, and locations when available. Focus on executive security, family safety, corporate threats, cyber incidents, and privacy breaches. Be concise - 2-3 paragraphs max per story." 
+                },
+                { 
+                  role: "user", 
+                  content: `Find 2-3 real, verified stories or incidents related to: ${query}. Include specific details like names (if public), dates, companies, and outcomes. Only include stories you can verify are real.` 
+                }
+              ],
+              max_tokens: 800,
+            }),
+          });
+          
+          if (perplexityResponse.ok) {
+            const data = await perplexityResponse.json();
+            const content = data.choices?.[0]?.message?.content;
+            const citations = data.citations || [];
+            
+            if (content) {
+              researchResults.push(content);
+              if (citations.length > 0) {
+                researchResults.push(`Sources: ${citations.slice(0, 3).join(", ")}`);
+              }
+            }
+          }
+        }
+        
+        if (researchResults.length > 0) {
+          researchContext = `\n\nRESEARCHED REAL STORIES AND INCIDENTS (Use these as basis for your narrative):
+${researchResults.join("\n\n")}
+
+IMPORTANT: Use these real stories as inspiration. You can:
+- Reference real public incidents by name/date if verified
+- Use the patterns and lessons from these stories
+- Create composite narratives that combine elements from multiple real cases
+- Always frame clearly: "There was a case in 2023 where..." or "You may have heard about..."
+- NEVER invent details that aren't in the research`;
+        }
+      } catch (researchError) {
+        console.error("Research error (continuing without research):", researchError);
+      }
     }
 
     // Fetch doctrine documents and episode history for context
@@ -444,6 +514,7 @@ TONE: ${config.toneIntensity} (${
     })
 
 ${modeInstructions}
+${researchContext}
 ${doctrineContext}
 ${episodeHistory}
 
