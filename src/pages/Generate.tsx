@@ -45,12 +45,92 @@ interface PersistedState {
   toneValue: number[];
 }
 
+const RECOVERY_SCRIPT = `Think about this for a second.
+
+Imagine it is three o'clock in the morning. You are asleep. Your family is asleep. Your life is exactly where you worked so hard for it to be. But while you are resting, three decades of your reputation, your digital legacy, and your physical safety are all hanging by a single thread of hope. Hope that nothing goes wrong. Hope that the world is as kind as it was yesterday.
+
+The mistake most people make is believing that luck is a strategy.
+
+I'm Aegis. Your podcast host and AI strategic intelligence advisor. And this is the first episode of The Fortified Podcast.
+
+First I want to discuss the elephant in the room. I am not a decision-maker. I am not an authority.
+
+I am a strategic lens.
+
+My purpose is simple: to help leaders see patterns earlier, think more clearly, and act with greater certainty.
+
+I do not replace human judgment. I refine it.
+
+I do not predict the future. I reveal trajectories.
+
+I exist to reduce complexity in environments where the cost of surprise is high.
+
+Also, The Fortified Podcast is not about security.
+
+It is about how high-level leaders think, decide, and prepare in environments where mistakes are expensive and surprises are unacceptable.
+
+Each episode explores the unseen forces shaping risk, power, reputation, and resilience.
+
+Not through headlines. Not through fear. But through signals, patterns, and strategic clarity.
+
+This is where reaction ends and foresight begins.
+
+Some podcasts inform. Some entertain.
+
+This one recalibrates how you see exposure, control, and certainty.
+
+I need to tell you something that might make you uncomfortable. Most of what you have been told about security is a lie. You've been told it's about cameras, or guards, or complex passwords. You've been told that if you buy the right gadget, you'll be safe.
+
+But I've seen the world behind the curtain. I've sat in the rooms where the decisions that actually matter get made. And here is what I know to be true. Security is not a product you buy. It's a state of being.
+
+He was right.
+
+He was living in what I call the Reactive Gap. Most people live there. They wait for the threat to arrive, and then they try to find a shield. But by the time you're looking for a shield, you've already been hit.
+
+The top one percent of the one percent—the people who truly understand power and longevity—they don't live in the Reactive Gap. They live in a state of Fortification.
+
+When you are fortified, your life feels different.
+
+I want you to close your eyes and picture this. Imagine moving through an international airport, or a crowded city, or a digital landscape, and knowing—not hoping, but knowing—that you are invisible to those who shouldn't see you. Imagine your home is not just a building, but an uncompromised fortress where your children can grow up without the weight of your public profile. Imagine your digital presence is so tightly controlled that your reputation is an asset you dictate, not a liability someone else can weaponize.
+
+This is the destination. It's a world of quiet operations. No noise. No drama. Just the absolute certainty that your world stays yours, no matter what happens outside of it.
+
+Most people think this level of control is impossible. They think the more successful you get, the more you have to sacrifice your peace of mind. They are wrong. In fact, if you do this correctly, your peace of mind increases in direct proportion to your success.
+
+I call this the Principle of Silent Continuity.
+
+If you can see it, it's already too late.
+
+If you've been with me in my private briefings, you know I don't talk about fear. Fear is for the unprepared. What we talk about is Intelligence. We talk about Strategy. We talk about the three specific pillars of the Fortified life.
+
+First is Digital Sovereignty. Owning your data and your digital shadow so completely that you cannot be tracked, doxed, or coerced.
+
+Second is Physical Posture. Creating an environment where your physical space is an extension of your intent. Where you define who enters, who leaves, and what they see.
+
+Third is Generational Continuity. Ensuring that what you built survives long enough to belong to your children's children, protected from the vultures that circle every successful family.
+
+This is what Silent Shield is about. It's about building a life that is so robust, it becomes a non-event. Because the greatest victory in my world is when absolutely nothing happens.
+
+Now, here's why I'm sharing all of this with you.
+
+There's a certain type of leader who never waits for permission to act. You're the person people call when things quietly start to drift toward chaos. But if you're honest with yourself, you already know something most people don't.
+
+Reaction is expensive. Certainty is rare. And visibility without control... that's just exposure.
+
+The leaders I work with—the fortified ones—they don't outsource awareness. They don't rely on luck. They don't wait. They become harder to surprise.
+
+So if this resonates—don't comment. Don't broadcast. There's a link in the show notes that opens a direct, encrypted chat with me. One tap. Send the word "Fortified." And we start the briefing.
+
+No pitch. No noise. Just a conversation about whether your current posture matches the level of responsibility you actually carry.
+
+This is Aegis. Fortune favors the fortified.`;
+
 const getInitialState = (): PersistedState => {
   const defaultState: PersistedState = {
     config: {
-      topic: '',
+      topic: 'The Fortified Podcast - Episode 1: Introduction',
       targetAudience: 'executives',
-      lifeDomains: ['executive_travel'],
+      lifeDomains: ['executive_travel', 'family_legacy', 'digital_privacy'],
       contentLength: 10,
       toneIntensity: 'strategic',
       outputMode: 'podcast_script',
@@ -76,6 +156,17 @@ const getInitialState = (): PersistedState => {
         parsed.config.outputMode = outputModeMap[parsed.config.outputMode];
       }
       return { ...defaultState, ...parsed, config: { ...defaultState.config, ...parsed.config } };
+    }
+    
+    // No saved state - check if we should recover the script
+    const recoveryUsed = localStorage.getItem('aegis-recovery-used');
+    if (!recoveryUsed) {
+      localStorage.setItem('aegis-recovery-used', 'true');
+      return {
+        ...defaultState,
+        generatedScript: RECOVERY_SCRIPT,
+        editableScript: RECOVERY_SCRIPT,
+      };
     }
   } catch (e) {
     console.error('Failed to load persisted state:', e);
