@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { MarketingAssets } from '@/components/MarketingAssets';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -810,6 +811,12 @@ export default function Generate() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Marketing Assets Section */}
+            <MarketingAssets 
+              script={isEditing ? editableScript : generatedScript} 
+              topic={config.topic} 
+            />
           </div>
         </div>
       </div>
