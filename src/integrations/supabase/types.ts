@@ -14,7 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      doctrine_documents: {
+        Row: {
+          content: string
+          created_at: string
+          document_type: string | null
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          document_type?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          document_type?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      episodes: {
+        Row: {
+          audio_url: string | null
+          content_length: number
+          created_at: string
+          id: string
+          output_mode: string
+          risk_domains: string[]
+          script_content: string | null
+          status: string | null
+          target_audience: string
+          title: string
+          tone_intensity: string
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          content_length?: number
+          created_at?: string
+          id?: string
+          output_mode?: string
+          risk_domains?: string[]
+          script_content?: string | null
+          status?: string | null
+          target_audience: string
+          title: string
+          tone_intensity?: string
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          content_length?: number
+          created_at?: string
+          id?: string
+          output_mode?: string
+          risk_domains?: string[]
+          script_content?: string | null
+          status?: string | null
+          target_audience?: string
+          title?: string
+          tone_intensity?: string
+          topic?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          role: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
