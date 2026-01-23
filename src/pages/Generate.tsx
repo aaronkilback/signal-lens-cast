@@ -216,8 +216,8 @@ export default function Generate() {
     }
   };
 
-  const handleGenerateAudio = async () => {
-    const scriptToUse = isEditing ? editableScript : generatedScript;
+  const handleGenerateAudio = async (scriptOverride?: string) => {
+    const scriptToUse = scriptOverride || (isEditing ? editableScript : generatedScript);
     
     if (!scriptToUse) {
       toast({
@@ -311,8 +311,11 @@ export default function Generate() {
 
   const handleToggleEdit = async () => {
     if (isEditing) {
+      // Capture the edited script before state changes
+      const editedScript = editableScript;
+      
       // Save edits
-      setGeneratedScript(editableScript);
+      setGeneratedScript(editedScript);
       setIsEditing(false);
       
       toast({
@@ -320,8 +323,8 @@ export default function Generate() {
         description: 'Regenerating audio with your edits...',
       });
       
-      // Auto-regenerate audio with edited script
-      await handleGenerateAudio();
+      // Auto-regenerate audio with the edited script (pass directly to avoid stale state)
+      await handleGenerateAudio(editedScript);
     } else {
       setIsEditing(true);
     }
@@ -613,7 +616,7 @@ export default function Generate() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleGenerateAudio}
+                        onClick={() => handleGenerateAudio()}
                         disabled={isGeneratingAudio}
                         title="Generate Audio"
                       >
