@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Library as LibraryIcon, Trash2, Eye, Clock, Target } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Library as LibraryIcon, Trash2, Eye, Clock, Target, Edit3, Volume2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { OUTPUT_MODE_OPTIONS } from '@/lib/aegis-types';
+import { OUTPUT_MODE_OPTIONS, LifeDomain, TargetAudience, ToneIntensity, OutputMode, VoiceOption } from '@/lib/aegis-types';
 
 interface Episode {
   id: string;
@@ -33,6 +34,7 @@ interface Episode {
 export default function LibraryPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
@@ -74,6 +76,33 @@ export default function LibraryPage() {
         description: 'Removed from your library.',
       });
     }
+  };
+
+  const handleEditInGenerator = (episode: Episode) => {
+    // Save episode data to localStorage so Generate page can load it
+    const generatorState = {
+      config: {
+        topic: episode.topic,
+        targetAudience: episode.target_audience as TargetAudience,
+        lifeDomains: episode.risk_domains as LifeDomain[],
+        contentLength: episode.content_length,
+        toneIntensity: episode.tone_intensity as ToneIntensity,
+        outputMode: episode.output_mode as OutputMode,
+        voice: 'onyx' as VoiceOption,
+      },
+      generatedScript: episode.script_content || '',
+      editableScript: episode.script_content || '',
+      toneValue: [episode.tone_intensity === 'clinical' ? 0 : episode.tone_intensity === 'commanding' ? 100 : 50],
+      loadedEpisodeId: episode.id,
+    };
+    localStorage.setItem('aegis-generate-state', JSON.stringify(generatorState));
+    
+    toast({
+      title: 'Episode Loaded',
+      description: 'Opening in generator for editing...',
+    });
+    
+    navigate('/generate');
   };
 
   const getOutputModeLabel = (mode: string) => {
@@ -177,6 +206,14 @@ export default function LibraryPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => handleEditInGenerator(episode)}
+                      title="Edit in Generator"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleDelete(episode.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -203,6 +240,15 @@ export default function LibraryPage() {
                   <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
                     {selectedEpisode.script_content}
                   </pre>
+                </div>
+                <div className="flex gap-2 mt-4 pt-4 border-t">
+                  <Button onClick={() => {
+                    handleEditInGenerator(selectedEpisode);
+                    setSelectedEpisode(null);
+                  }}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit in Generator
+                  </Button>
                 </div>
               </>
             )}
