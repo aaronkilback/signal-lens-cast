@@ -58,38 +58,56 @@ serve(async (req) => {
       });
     }
 
-    // For longer texts, split by sentences and process in chunks
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+    // For longer texts, split by paragraphs first, then by sentences
+    // This preserves text that doesn't end with punctuation
+    const paragraphs = text.split(/\n\n+/).filter((p: string) => p.trim());
     let currentChunk = "";
     
-    for (const sentence of sentences) {
-      if ((currentChunk + sentence).length > MAX_CHARS) {
-        if (currentChunk.trim()) {
-          const response = await fetch("https://api.openai.com/v1/audio/speech", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${OPENAI_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "tts-1-hd",
-              voice: voice,
-              input: currentChunk.trim(),
-              response_format: "mp3",
-            }),
-          });
+    for (const paragraph of paragraphs) {
+      // Split paragraph into sentences, but keep the delimiters
+      const sentences = paragraph.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim());
+      
+      // If no sentences found (no punctuation), treat whole paragraph as one unit
+      const units = sentences.length > 0 ? sentences : [paragraph];
+      
+      for (const unit of units) {
+        const unitWithSpace = unit + " ";
+        
+        if ((currentChunk + unitWithSpace).length > MAX_CHARS) {
+          // Process current chunk before adding new unit
+          if (currentChunk.trim()) {
+            console.log(`Processing chunk: ${currentChunk.length} chars`);
+            const response = await fetch("https://api.openai.com/v1/audio/speech", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "tts-1-hd",
+                voice: voice,
+                input: currentChunk.trim(),
+                response_format: "mp3",
+              }),
+            });
 
-          if (!response.ok) {
-            throw new Error(`OpenAI TTS failed: ${response.status}`);
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error("OpenAI TTS chunk error:", response.status, errorText);
+              throw new Error(`OpenAI TTS failed: ${response.status}`);
+            }
+
+            const buffer = await response.arrayBuffer();
+            audioChunks.push(new Uint8Array(buffer));
           }
-
-          const buffer = await response.arrayBuffer();
-          audioChunks.push(new Uint8Array(buffer));
+          currentChunk = unitWithSpace;
+        } else {
+          currentChunk += unitWithSpace;
         }
-        currentChunk = sentence;
-      } else {
-        currentChunk += sentence;
       }
+      
+      // Add paragraph break pause (extra space for natural pacing)
+      currentChunk += " ";
     }
 
     // Process remaining text
