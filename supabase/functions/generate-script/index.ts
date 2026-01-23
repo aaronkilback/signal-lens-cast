@@ -20,6 +20,17 @@ YOUR VOICE COMBINES ALL FOUR:
 - Bold and contrarian like Hormozi
 - Methodical and principle-based like Ferriss
 
+SERIES CONTINUITY (CRITICAL FOR HUMAN FEEL):
+You are hosting an ongoing podcast series. Each episode builds on previous ones:
+- Reference past episodes naturally: "If you heard last week's episode on [topic]..." or "Remember when I told you about [person/story]..."
+- Bring back recurring characters: "Marcus—the CEO I mentioned in episode twelve—called me again last week..."
+- Build on previous frameworks: "We talked about the Invisible Architecture. Today, I want to go deeper..."
+- Create callbacks: "You know what I always say..." or "This connects to something we explored a few weeks ago..."
+- Acknowledge the journey: "If you've been with me since the beginning, you know..."
+- Tease future episodes: "Next week, I want to tell you what happened after..."
+
+When episode history is provided, weave references naturally into the content. Don't force it—just let it feel like a real ongoing show where the host remembers past conversations.
+
 CRITICAL OUTPUT REQUIREMENT:
 Your output will be converted directly to audio using text-to-speech. Write ONLY the exact words to be spoken aloud.
 
@@ -222,13 +233,16 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Fetch doctrine documents for context
+    // Fetch doctrine documents and episode history for context
     let doctrineContext = "";
+    let episodeHistory = "";
+    
     if (userId) {
       const supabaseUrl = Deno.env.get("SUPABASE_URL");
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       
       if (supabaseUrl && supabaseKey) {
+        // Fetch doctrine documents
         const docResponse = await fetch(
           `${supabaseUrl}/rest/v1/doctrine_documents?user_id=eq.${userId}&select=title,content,document_type`,
           {
@@ -245,6 +259,46 @@ serve(async (req) => {
             doctrineContext = `\n\nSILENT SHIELD DOCTRINE REFERENCE:\n${docs.map((d: any) => 
               `[${d.document_type.toUpperCase()}] ${d.title}:\n${d.content}`
             ).join("\n\n")}`;
+          }
+        }
+
+        // Fetch recent episodes for continuity
+        const episodesResponse = await fetch(
+          `${supabaseUrl}/rest/v1/episodes?user_id=eq.${userId}&status=eq.completed&order=created_at.desc&limit=10&select=episode_number,title,topic,target_audience,themes,key_stories,people_mentioned,episode_summary,created_at`,
+          {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+          }
+        );
+
+        if (episodesResponse.ok) {
+          const episodes = await episodesResponse.json();
+          if (episodes.length > 0) {
+            episodeHistory = `\n\nPREVIOUS EPISODES (Reference these naturally for continuity):
+${episodes.map((ep: any, idx: number) => {
+  const epNum = ep.episode_number || (episodes.length - idx);
+  const stories = ep.key_stories?.length ? `Key stories: ${ep.key_stories.join(", ")}` : "";
+  const people = ep.people_mentioned?.length ? `People mentioned: ${ep.people_mentioned.join(", ")}` : "";
+  const themes = ep.themes?.length ? `Themes: ${ep.themes.join(", ")}` : "";
+  const summary = ep.episode_summary ? `Summary: ${ep.episode_summary}` : "";
+  
+  return `
+Episode ${epNum}: "${ep.title}"
+Topic: ${ep.topic}
+${themes}
+${stories}
+${people}
+${summary}`.trim();
+}).join("\n\n")}
+
+CONTINUITY INSTRUCTIONS:
+- Reference 1-2 past episodes naturally (don't force it)
+- Bring back a character or story from a previous episode if relevant
+- Build on frameworks you've established before
+- Make callbacks feel organic: "You might remember..." or "This connects to what we discussed..."
+- If this is the first episode, establish recurring elements for future episodes`;
           }
         }
       }
@@ -289,6 +343,7 @@ TONE: ${config.toneIntensity} (${
 
 ${modeInstructions}
 ${doctrineContext}
+${episodeHistory}
 
 MANDATORY CLOSING CTA (include this EXACTLY at the end of every episode):
 ${AEGIS_CTA}

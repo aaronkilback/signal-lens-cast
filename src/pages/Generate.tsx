@@ -318,6 +318,37 @@ export default function Generate() {
     if (!scriptToSave || !user) return;
 
     try {
+      // Extract episode metadata for continuity
+      let metadata = {
+        key_stories: [] as string[],
+        people_mentioned: [] as string[],
+        themes: [] as string[],
+        episode_summary: config.topic,
+      };
+
+      try {
+        const metadataResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              script: scriptToSave,
+              topic: config.topic,
+            }),
+          }
+        );
+
+        if (metadataResponse.ok) {
+          metadata = await metadataResponse.json();
+        }
+      } catch (metaError) {
+        console.warn('Could not extract metadata:', metaError);
+      }
+
       const { error } = await supabase.from('episodes').insert({
         user_id: user.id,
         title: config.topic.slice(0, 100),
@@ -329,6 +360,10 @@ export default function Generate() {
         output_mode: config.outputMode,
         script_content: scriptToSave,
         status: 'completed',
+        key_stories: metadata.key_stories,
+        people_mentioned: metadata.people_mentioned,
+        themes: metadata.themes,
+        episode_summary: metadata.episode_summary,
       });
 
       if (error) throw error;
