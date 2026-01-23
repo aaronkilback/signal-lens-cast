@@ -17,10 +17,10 @@ export type LifeDomain =
 export type ToneIntensity = 'clinical' | 'strategic' | 'commanding';
 
 export type OutputMode = 
-  | 'full_episode' 
-  | 'executive_summary' 
-  | 'social_clip' 
-  | 'long_narrative';
+  | 'podcast_script' 
+  | 'executive_briefing' 
+  | 'field_intelligence' 
+  | 'narrative_story';
 
 export type VoiceOption = 'onyx' | 'echo' | 'alloy' | 'fable' | 'nova' | 'shimmer';
 
@@ -53,10 +53,10 @@ export const LIFE_DOMAIN_OPTIONS: { value: LifeDomain; label: string; descriptio
 ];
 
 export const OUTPUT_MODE_OPTIONS: { value: OutputMode; label: string; description: string }[] = [
-  { value: 'full_episode', label: 'Full Episode', description: 'Complete 7-section future-paced episode' },
-  { value: 'executive_summary', label: 'Executive Summary', description: 'Condensed insight for decision-makers' },
-  { value: 'social_clip', label: 'Social Clip', description: 'Punchy excerpt for LinkedIn/social sharing' },
-  { value: 'long_narrative', label: 'Long-Form Narrative', description: 'Deep storytelling for premium content' },
+  { value: 'podcast_script', label: 'Podcast Episode', description: 'Complete podcast episode (Bartlett/Hormozi/Martell style)' },
+  { value: 'executive_briefing', label: 'Executive Briefing', description: 'High-impact briefing for decision-makers' },
+  { value: 'field_intelligence', label: 'Field Intelligence', description: 'Tactical field report for operators' },
+  { value: 'narrative_story', label: 'Long-Form Narrative', description: 'Deep storytelling for premium content' },
 ];
 
 export const VOICE_OPTIONS: { value: VoiceOption; label: string; description: string }[] = [
