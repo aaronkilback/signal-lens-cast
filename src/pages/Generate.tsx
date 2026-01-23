@@ -46,15 +46,7 @@ interface PersistedState {
 }
 
 const getInitialState = (): PersistedState => {
-  try {
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load persisted state:', e);
-  }
-  return {
+  const defaultState: PersistedState = {
     config: {
       topic: '',
       targetAudience: 'executives',
@@ -68,6 +60,28 @@ const getInitialState = (): PersistedState => {
     editableScript: '',
     toneValue: [50],
   };
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Migrate old outputMode values to new ones
+      const outputModeMap: Record<string, string> = {
+        full_episode: 'podcast_script',
+        executive_summary: 'executive_briefing',
+        social_clip: 'field_intelligence',
+        long_narrative: 'narrative_story',
+      };
+      if (parsed.config?.outputMode && outputModeMap[parsed.config.outputMode]) {
+        parsed.config.outputMode = outputModeMap[parsed.config.outputMode];
+      }
+      return { ...defaultState, ...parsed, config: { ...defaultState.config, ...parsed.config } };
+    }
+  } catch (e) {
+    console.error('Failed to load persisted state:', e);
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  return defaultState;
 };
 
 export default function Generate() {
@@ -94,7 +108,7 @@ export default function Generate() {
       editableScript,
       toneValue,
     };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
   }, [config, generatedScript, editableScript, toneValue]);
 
   const handleToneChange = (value: number[]) => {
