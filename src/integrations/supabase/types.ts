@@ -110,6 +110,44 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_assets: {
+        Row: {
+          asset_type: string
+          content: string
+          created_at: string
+          episode_id: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_type: string
+          content: string
+          created_at?: string
+          episode_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_type?: string
+          content?: string
+          created_at?: string
+          episode_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_assets_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

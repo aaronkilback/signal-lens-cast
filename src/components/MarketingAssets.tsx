@@ -1,12 +1,15 @@
-import { useState, useCallback } from 'react';
-import { FileText, List, MessageSquare, PenTool, BookOpen, Loader2, Copy, Download, ChevronDown } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { FileText, List, MessageSquare, PenTool, BookOpen, Loader2, Copy, Download, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface MarketingAssetsProps {
   script: string;
   topic: string;
+  episodeId?: string;
 }
 
 type AssetType = 'show_notes' | 'chapter_markers' | 'transcript' | 'social_posts' | 'blog_post';
@@ -26,8 +29,9 @@ const ASSET_CONFIGS: AssetConfig[] = [
   { id: 'blog_post', label: 'Blog Post', icon: PenTool, description: '800-1200 word article version of the episode' },
 ];
 
-export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
+export function MarketingAssets({ script, topic, episodeId }: MarketingAssetsProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Record<AssetType, string>>({
     show_notes: '',
     chapter_markers: '',
@@ -42,6 +46,77 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
     social_posts: false,
     blog_post: false,
   });
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+
+  // Load existing assets from database when episodeId changes
+  useEffect(() => {
+    if (!episodeId) {
+      // Reset assets when no episode is selected
+      setAssets({
+        show_notes: '',
+        chapter_markers: '',
+        transcript: '',
+        social_posts: '',
+        blog_post: '',
+      });
+      return;
+    }
+
+    const loadAssets = async () => {
+      setIsLoadingAssets(true);
+      try {
+        const { data, error } = await supabase
+          .from('marketing_assets')
+          .select('asset_type, content')
+          .eq('episode_id', episodeId);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const loadedAssets: Record<AssetType, string> = {
+            show_notes: '',
+            chapter_markers: '',
+            transcript: '',
+            social_posts: '',
+            blog_post: '',
+          };
+          data.forEach((item) => {
+            if (item.asset_type in loadedAssets) {
+              loadedAssets[item.asset_type as AssetType] = item.content;
+            }
+          });
+          setAssets(loadedAssets);
+        }
+      } catch (error) {
+        console.error('Failed to load marketing assets:', error);
+      } finally {
+        setIsLoadingAssets(false);
+      }
+    };
+
+    loadAssets();
+  }, [episodeId]);
+
+  const saveAsset = useCallback(async (assetType: AssetType, content: string) => {
+    if (!episodeId || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('marketing_assets')
+        .upsert({
+          episode_id: episodeId,
+          user_id: user.id,
+          asset_type: assetType,
+          content,
+        }, {
+          onConflict: 'episode_id,asset_type',
+        });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed to save marketing asset:', error);
+    }
+  }, [episodeId, user]);
 
   const generateAsset = useCallback(async (assetType: AssetType) => {
     if (!script) {
@@ -76,6 +151,11 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
       const data = await response.json();
       setAssets(prev => ({ ...prev, [assetType]: data.content }));
 
+      // Save to database if we have an episodeId
+      if (episodeId) {
+        await saveAsset(assetType, data.content);
+      }
+
       toast({
         title: 'Asset Generated',
         description: `${ASSET_CONFIGS.find(c => c.id === assetType)?.label} is ready.`,
@@ -90,7 +170,7 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
     } finally {
       setLoading(prev => ({ ...prev, [assetType]: false }));
     }
-  }, [script, topic, toast]);
+  }, [script, topic, toast, episodeId, saveAsset]);
 
   const copyToClipboard = useCallback((content: string, label: string) => {
     navigator.clipboard.writeText(content);
@@ -123,11 +203,23 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
     return null;
   }
 
+  if (isLoadingAssets) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Loading marketing assets...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <PenTool className="h-4 w-4" />
         <span>Marketing Assets</span>
+        {!episodeId && (
+          <span className="text-xs text-amber-500">(Save episode to persist assets)</span>
+        )}
       </div>
 
       <Accordion type="multiple" className="w-full space-y-2">
@@ -146,7 +238,10 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
                 <div className="flex items-center gap-3 text-left">
                   <Icon className="h-4 w-4 text-primary" />
                   <div>
-                    <div className="font-medium">{config.label}</div>
+                    <div className="font-medium flex items-center gap-2">
+                      {config.label}
+                      {content && <span className="text-xs text-green-500">✓</span>}
+                    </div>
                     <div className="text-xs text-muted-foreground">{config.description}</div>
                   </div>
                 </div>
@@ -180,7 +275,10 @@ export function MarketingAssets({ script, topic }: MarketingAssetsProps) {
                         {isLoading ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
-                          'Regenerate'
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Regenerate
+                          </>
                         )}
                       </Button>
                     </div>
