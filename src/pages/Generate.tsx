@@ -61,7 +61,7 @@ const getInitialState = (): PersistedState => {
       lifeDomains: ['executive_travel'],
       contentLength: 10,
       toneIntensity: 'strategic',
-      outputMode: 'full_episode',
+      outputMode: 'podcast_script',
       voice: 'onyx',
     },
     generatedScript: '',
