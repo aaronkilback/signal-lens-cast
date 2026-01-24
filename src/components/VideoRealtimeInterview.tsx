@@ -86,23 +86,6 @@ export function VideoRealtimeInterview({
     setWebcamVideo(video);
   }, [setWebcamVideo]);
 
-  // Track if we should connect after stream is set
-  const pendingConnectRef = useRef(false);
-
-  // When webcamStream changes and we have a pending connect, do it
-  useEffect(() => {
-    if (pendingConnectRef.current && webcamStream) {
-      pendingConnectRef.current = false;
-      console.log('[VideoInterview] Stream ready, connecting...');
-      connect().then(() => {
-        startRecording(() => isAiSpeakingRef.current);
-        setIsReady(true);
-      }).catch(err => {
-        console.error('[VideoInterview] Connect failed:', err);
-      });
-    }
-  }, [webcamStream, connect, startRecording]);
-
   const handleStartInterview = async () => {
     try {
       console.log('[VideoInterview] Starting interview...');
@@ -122,10 +105,16 @@ export function VideoRealtimeInterview({
       });
       console.log('[VideoInterview] Got media stream with', stream.getAudioTracks().length, 'audio tracks');
       
-      setAudioStream(stream);
-      // Set pending flag BEFORE setting stream so the effect picks it up
-      pendingConnectRef.current = true;
       setWebcamStream(stream);
+      setAudioStream(stream);
+      
+      // Pass stream directly to connect to avoid stale closure issues
+      console.log('[VideoInterview] Calling connect with stream...');
+      await connect(stream);
+      
+      console.log('[VideoInterview] Starting recording...');
+      startRecording(() => isAiSpeakingRef.current);
+      setIsReady(true);
     } catch (err) {
       console.error('[VideoInterview] Failed to start interview:', err);
     }
