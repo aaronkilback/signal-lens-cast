@@ -134,6 +134,15 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       dc.onopen = () => {
         console.log('Data channel opened');
         updateStatus('connected');
+        
+        // Trigger Aegis to start speaking first (as the host)
+        // Small delay to ensure session is fully ready
+        setTimeout(() => {
+          if (dc.readyState === 'open') {
+            console.log('Sending response.create to trigger Aegis greeting');
+            dc.send(JSON.stringify({ type: 'response.create' }));
+          }
+        }, 500);
       };
 
       dc.onmessage = (e) => {
