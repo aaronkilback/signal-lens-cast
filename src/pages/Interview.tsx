@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RealtimeInterview } from '@/components/RealtimeInterview';
+import { VideoRealtimeInterview } from '@/components/VideoRealtimeInterview';
 import { GuestSelector } from '@/components/GuestSelector';
 import { TranscriptEntry } from '@/hooks/useRealtimeInterview';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, FileText, Users } from 'lucide-react';
+import { Mic, FileText, Users, Video } from 'lucide-react';
 import { VoiceOption } from '@/lib/aegis-types';
 
 interface GuestProfile {
@@ -34,6 +36,7 @@ export default function Interview() {
   const [customGuestName, setCustomGuestName] = useState('');
   const [customGuestBio, setCustomGuestBio] = useState('');
   const [showInterview, setShowInterview] = useState(false);
+  const [interviewMode, setInterviewMode] = useState<'audio' | 'video'>('video');
   const [completedTranscript, setCompletedTranscript] = useState<TranscriptEntry[] | null>(null);
 
   // Fetch selected guest data
@@ -204,14 +207,36 @@ export default function Interview() {
                   />
                 </div>
 
+                {/* Interview Mode Selection */}
+                <div className="space-y-2">
+                  <Label>Recording Mode</Label>
+                  <Tabs value={interviewMode} onValueChange={(v) => setInterviewMode(v as 'audio' | 'video')}>
+                    <TabsList className="w-full">
+                      <TabsTrigger value="video" className="flex-1 gap-2">
+                        <Video className="h-4 w-4" />
+                        Video (YouTube)
+                      </TabsTrigger>
+                      <TabsTrigger value="audio" className="flex-1 gap-2">
+                        <Mic className="h-4 w-4" />
+                        Audio Only
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <p className="text-xs text-muted-foreground">
+                    {interviewMode === 'video' 
+                      ? 'Split-screen recording with Aegis avatar + your webcam'
+                      : 'Audio-only interview with live transcription'}
+                  </p>
+                </div>
+
                 {!showInterview && (
                   <Button
                     onClick={handleStartInterview}
                     className="w-full gap-2"
                     size="lg"
                   >
-                    <Mic className="h-4 w-4" />
-                    Start Live Interview
+                    {interviewMode === 'video' ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    Start {interviewMode === 'video' ? 'Video' : 'Live'} Interview
                   </Button>
                 )}
               </CardContent>
@@ -249,12 +274,21 @@ export default function Interview() {
           {/* Interview Panel */}
           <div className="lg:col-span-2 min-h-[600px]">
             {showInterview ? (
-              <RealtimeInterview
-                guestName={guestName}
-                guestBio={guestBio}
-                topic={topic}
-                onInterviewComplete={handleInterviewComplete}
-              />
+              interviewMode === 'video' ? (
+                <VideoRealtimeInterview
+                  guestName={guestName}
+                  guestBio={guestBio}
+                  topic={topic}
+                  onInterviewComplete={handleInterviewComplete}
+                />
+              ) : (
+                <RealtimeInterview
+                  guestName={guestName}
+                  guestBio={guestBio}
+                  topic={topic}
+                  onInterviewComplete={handleInterviewComplete}
+                />
+              )
             ) : (
               <Card className="h-full flex items-center justify-center">
                 <CardContent className="text-center py-12">
