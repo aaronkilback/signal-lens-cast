@@ -30,6 +30,12 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const optionsRef = useRef(options);
+  
+  // Keep options ref updated
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
     setStatus(newStatus);
@@ -65,19 +71,24 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
 
       // Use external audio stream if provided, otherwise request microphone
       let stream: MediaStream;
-      if (options.externalAudioStream) {
-        stream = options.externalAudioStream;
+      const currentOptions = optionsRef.current;
+      
+      // Use external audio stream if provided, otherwise request microphone
+      if (currentOptions.externalAudioStream) {
+        stream = currentOptions.externalAudioStream;
+        console.log('Using external audio stream with tracks:', stream.getAudioTracks().length);
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Created new audio stream');
       }
       mediaStreamRef.current = stream;
 
       // Get ephemeral token from our edge function
       const { data, error: fnError } = await supabase.functions.invoke('realtime-session', {
         body: {
-          guestName: options.guestName,
-          guestBio: options.guestBio,
-          topic: options.topic,
+          guestName: currentOptions.guestName,
+          guestBio: currentOptions.guestBio,
+          topic: currentOptions.topic,
         },
       });
 
@@ -91,17 +102,30 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
 
-      // Set up audio playback
+      // Set up audio playback - append to body to ensure it can play
       const audioEl = document.createElement('audio');
       audioEl.autoplay = true;
+      audioEl.id = 'aegis-realtime-audio';
+      // Remove any existing audio element
+      const existingAudio = document.getElementById('aegis-realtime-audio');
+      if (existingAudio) existingAudio.remove();
+      document.body.appendChild(audioEl);
       audioElementRef.current = audioEl;
       
       pc.ontrack = (e) => {
+        console.log('Received audio track from Aegis');
         audioEl.srcObject = e.streams[0];
+        // Try to play explicitly (in case autoplay is blocked)
+        audioEl.play().catch(err => console.warn('Audio autoplay blocked:', err));
       };
 
-      // Add microphone track
-      pc.addTrack(stream.getTracks()[0]);
+      // Add microphone track - specifically get audio track
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) {
+        throw new Error('No audio track found in stream');
+      }
+      console.log('Adding audio track to peer connection:', audioTrack.label);
+      pc.addTrack(audioTrack, stream);
 
       // Set up data channel for events
       const dc = pc.createDataChannel('oai-events');
@@ -259,14 +283,16 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     }
 
     // Only stop media stream if we created it (not external)
-    if (mediaStreamRef.current && !options.externalAudioStream) {
+    if (mediaStreamRef.current && !optionsRef.current.externalAudioStream) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
     }
     mediaStreamRef.current = null;
 
     // Clean up audio element
     if (audioElementRef.current) {
+      audioElementRef.current.pause();
       audioElementRef.current.srcObject = null;
+      audioElementRef.current.remove(); // Remove from DOM
       audioElementRef.current = null;
     }
 
