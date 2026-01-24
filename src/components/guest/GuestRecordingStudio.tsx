@@ -195,6 +195,8 @@ export function GuestRecordingStudio({
     setPhase('review');
   };
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleFinalize = async () => {
     // Save selected segments to database
     const selectedSegmentsList = segments.filter(s => selectedSegments.has(s.id));
@@ -208,12 +210,78 @@ export function GuestRecordingStudio({
       return;
     }
 
+    if (!user) {
+      toast({
+        title: 'Not Authenticated',
+        description: 'You must be logged in to save recordings.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
     try {
+      // Upload each selected segment to storage and save to database
+      for (let i = 0; i < selectedSegmentsList.length; i++) {
+        const segment = selectedSegmentsList[i];
+        
+        if (!segment.blob) {
+          console.warn(`Segment ${segment.id} has no blob, skipping`);
+          continue;
+        }
+
+        // Upload to storage: {user_id}/{session_id}/{segment_id}.webm
+        const filePath = `${user.id}/${sessionId}/${segment.id}.webm`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('recordings')
+          .upload(filePath, segment.blob, {
+            contentType: 'video/webm',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(`Failed to upload segment ${i + 1}: ${uploadError.message}`);
+        }
+
+        // Get the URL for the uploaded file
+        const { data: urlData } = supabase.storage
+          .from('recordings')
+          .getPublicUrl(filePath);
+
+        // Since bucket is private, construct signed URL path instead
+        const videoUrl = filePath; // Store path, get signed URL when needed
+
+        // Save segment record to database
+        const { error: insertError } = await supabase
+          .from('recording_segments')
+          .insert({
+            session_id: sessionId,
+            segment_number: i + 1,
+            transcript: segment.transcript || null,
+            video_url: videoUrl,
+            status: 'completed',
+            start_time: segment.startTime ? segment.startTime / 1000 : null,
+            end_time: segment.endTime ? segment.endTime / 1000 : null,
+          });
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw new Error(`Failed to save segment ${i + 1}: ${insertError.message}`);
+        }
+      }
+
       // Update session status
-      await supabase
+      const { error: updateError } = await supabase
         .from('interview_sessions')
         .update({ status: 'completed' })
         .eq('id', sessionId);
+
+      if (updateError) {
+        console.error('Session update error:', updateError);
+      }
 
       // Stop webcam
       if (webcamStream) {
@@ -222,7 +290,7 @@ export function GuestRecordingStudio({
 
       toast({
         title: 'Interview Saved',
-        description: 'Your interview has been submitted for processing.',
+        description: `${selectedSegmentsList.length} segment(s) uploaded successfully.`,
       });
 
       onComplete();
@@ -230,9 +298,11 @@ export function GuestRecordingStudio({
       console.error('Error finalizing:', err);
       toast({
         title: 'Error',
-        description: 'Failed to save interview. Please try again.',
+        description: err instanceof Error ? err.message : 'Failed to save interview. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -513,10 +583,19 @@ export function GuestRecordingStudio({
           <Button
             onClick={handleFinalize}
             className="flex-1 gap-2"
-            disabled={selectedSegments.size === 0}
+            disabled={selectedSegments.size === 0 || isSaving}
           >
-            <Check className="h-4 w-4" />
-            Finish Interview
+            {isSaving ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" />
+                Finish Interview
+              </>
+            )}
           </Button>
         </div>
       </div>
