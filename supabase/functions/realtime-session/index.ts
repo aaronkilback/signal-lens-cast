@@ -162,9 +162,9 @@ Remember: You speak FIRST. The guest is waiting for your introduction.`;
 No guest is specified. Have a general conversation about security, protection, and risk management. You can ask the person what topics interest them most.`;
     }
 
-    // Create ephemeral session token
+    // Create ephemeral session token - must match model in client
     const sessionConfig = {
-      model: "gpt-4o-realtime-preview",
+      model: "gpt-4o-realtime-preview-2024-12-17",
       voice: "ash", // Aegis's voice - deep, authoritative tone
       instructions: contextInstructions,
       input_audio_transcription: {

@@ -12,7 +12,7 @@ interface UseRealtimeInterviewOptions {
   guestName?: string;
   guestBio?: string;
   topic?: string;
-  externalAudioStream?: MediaStream; // Allow passing an external audio stream
+  externalAudioStream?: MediaStream;
   onTranscript?: (entry: TranscriptEntry) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: ConnectionStatus) => void;
@@ -31,6 +31,8 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const optionsRef = useRef(options);
+  const isConnectingRef = useRef(false);
+  const hasRequestedInitialResponseRef = useRef(false);
   
   // Keep options ref updated
   useEffect(() => {
@@ -44,7 +46,6 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
 
   const addTranscriptEntry = useCallback((entry: TranscriptEntry) => {
     setTranscript(prev => {
-      // If this is a continuation of the last entry from the same role, update it
       const lastEntry = prev[prev.length - 1];
       if (lastEntry && lastEntry.role === entry.role && !lastEntry.isFinal) {
         return [...prev.slice(0, -1), { ...entry, text: entry.text }];
@@ -54,21 +55,17 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     options.onTranscript?.(entry);
   }, [options]);
 
-  const isConnectingRef = useRef(false);
-  const hasRequestedInitialResponseRef = useRef(false);
-
   const requestInitialResponse = useCallback((reason: string) => {
     const dc = dataChannelRef.current;
     if (!dc || dc.readyState !== 'open') return;
     if (hasRequestedInitialResponseRef.current) return;
 
     hasRequestedInitialResponseRef.current = true;
-    console.log(`Requesting initial Aegis response (${reason})`);
+    console.log(`[Realtime] Requesting initial Aegis response (${reason})`);
     dc.send(
       JSON.stringify({
         type: 'response.create',
         response: {
-          // Explicitly request audio to avoid “connected but silent” sessions
           modalities: ['audio', 'text'],
           instructions:
             "Begin the interview now. You are the host and you must speak first with your warm introduction, then welcome the guest and ask the first question.",
@@ -77,188 +74,54 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     );
   }, []);
 
-  const connect = useCallback(async () => {
-    // Prevent duplicate connection attempts
-    if (isConnectingRef.current || status === 'connected' || status === 'connecting') {
-      console.log('Connection already in progress or established');
-      return;
+  // Disconnect must be declared before connect
+  const disconnect = useCallback(() => {
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close();
+      dataChannelRef.current = null;
     }
-    
-    isConnectingRef.current = true;
-    
-    try {
-      updateStatus('connecting');
-      setError(null);
 
-      // Use external audio stream if provided, otherwise request microphone
-      let stream: MediaStream;
-      const currentOptions = optionsRef.current;
-      
-      // Use external audio stream if provided, otherwise request microphone
-      if (currentOptions.externalAudioStream) {
-        stream = currentOptions.externalAudioStream;
-        console.log('Using external audio stream with tracks:', stream.getAudioTracks().length);
-      } else {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log('Created new audio stream');
-      }
-      mediaStreamRef.current = stream;
-
-      // Get ephemeral token from our edge function
-      const { data, error: fnError } = await supabase.functions.invoke('realtime-session', {
-        body: {
-          guestName: currentOptions.guestName,
-          guestBio: currentOptions.guestBio,
-          topic: currentOptions.topic,
-        },
-      });
-
-      if (fnError || !data?.client_secret) {
-        throw new Error(fnError?.message || 'Failed to get session token');
-      }
-
-      const EPHEMERAL_KEY = data.client_secret.value;
-
-      // Create peer connection (add STUN for more reliable connectivity)
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      });
-      peerConnectionRef.current = pc;
-
-      pc.oniceconnectionstatechange = () => {
-        console.log('ICE connection state:', pc.iceConnectionState);
-      };
-      pc.onconnectionstatechange = () => {
-        console.log('Peer connection state:', pc.connectionState);
-      };
-
-      // Set up audio playback - append to body to ensure it can play
-      const audioEl = document.createElement('audio');
-      audioEl.autoplay = true;
-      audioEl.id = 'aegis-realtime-audio';
-      // Remove any existing audio element
-      const existingAudio = document.getElementById('aegis-realtime-audio');
-      if (existingAudio) existingAudio.remove();
-      document.body.appendChild(audioEl);
-      audioElementRef.current = audioEl;
-      
-      pc.ontrack = (e) => {
-        console.log('Received audio track from Aegis');
-        audioEl.srcObject = e.streams[0];
-        // Try to play explicitly (in case autoplay is blocked)
-        audioEl.play().catch(err => console.warn('Audio autoplay blocked:', err));
-      };
-
-      // Add microphone track - specifically get audio track
-      const audioTrack = stream.getAudioTracks()[0];
-      if (!audioTrack) {
-        throw new Error('No audio track found in stream');
-      }
-      console.log('Adding audio track to peer connection:', audioTrack.label);
-      pc.addTrack(audioTrack, stream);
-
-      // Set up data channel for events
-      const dc = pc.createDataChannel('oai-events');
-      dataChannelRef.current = dc;
-
-      dc.onopen = () => {
-        console.log('Data channel opened');
-        updateStatus('connected');
-
-        // Some sessions never speak unless we explicitly request the first response.
-        // We'll also request again on `session.created` (whichever happens first).
-        setTimeout(() => requestInitialResponse('datachannel.open'), 400);
-      };
-
-      dc.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data);
-          handleRealtimeEvent(event);
-        } catch (err) {
-          console.error('Failed to parse realtime event:', err);
-        }
-      };
-
-      dc.onerror = (e) => {
-        console.error('Data channel error:', e);
-      };
-
-      // Create and set local description
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      // Check if connection was closed during async operations
-      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
-        console.log('Connection was closed during setup');
-        isConnectingRef.current = false;
-        return;
-      }
-
-      // Send offer to OpenAI Realtime API
-      const baseUrl = 'https://api.openai.com/v1/realtime';
-      // Must match the model used when creating the session token
-      const model = 'gpt-4o-realtime-preview';
-      
-      const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
-        method: 'POST',
-        body: offer.sdp,
-        headers: {
-          Authorization: `Bearer ${EPHEMERAL_KEY}`,
-          'Content-Type': 'application/sdp',
-        },
-      });
-
-      if (!sdpResponse.ok) {
-        const errText = await sdpResponse.text();
-        throw new Error(`Failed to establish connection: ${sdpResponse.status} - ${errText}`);
-      }
-
-      const answerSdp = await sdpResponse.text();
-      
-      // Final check before setting remote description
-      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
-        console.log('Connection was closed before setting remote description');
-        isConnectingRef.current = false;
-        return;
-      }
-      
-      await pc.setRemoteDescription({
-        type: 'answer',
-        sdp: answerSdp,
-      });
-
-    } catch (err) {
-      console.error('Connection error:', err);
-      const error = err instanceof Error ? err : new Error('Connection failed');
-      setError(error);
-      updateStatus('error');
-      options.onError?.(error);
-      disconnect();
-    } finally {
-      isConnectingRef.current = false;
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
-  }, [options, updateStatus, status]);
 
+    if (mediaStreamRef.current && !optionsRef.current.externalAudioStream) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+    }
+    mediaStreamRef.current = null;
+
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.srcObject = null;
+      audioElementRef.current.remove();
+      audioElementRef.current = null;
+    }
+
+    hasRequestedInitialResponseRef.current = false;
+    isConnectingRef.current = false;
+
+    updateStatus('disconnected');
+    setIsAiSpeaking(false);
+  }, [updateStatus]);
+
+  // handleRealtimeEvent must be declared before connect
   const handleRealtimeEvent = useCallback((event: any) => {
-    console.log('Realtime event:', event.type);
+    console.log('[Realtime] Event:', event.type);
 
     switch (event.type) {
       case 'session.created':
-        console.log('Session created:', event.session?.id);
-        // Ensure Aegis speaks first even if user doesn't talk.
+        console.log('[Realtime] Session created:', event.session?.id);
         requestInitialResponse('session.created');
         break;
 
       case 'input_audio_buffer.speech_started':
-        // User started speaking
         break;
 
       case 'input_audio_buffer.speech_stopped':
-        // User stopped speaking
         break;
 
       case 'conversation.item.input_audio_transcription.completed':
-        // User's speech transcribed
         if (event.transcript) {
           addTranscriptEntry({
             role: 'user',
@@ -270,7 +133,6 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
         break;
 
       case 'response.audio_transcript.delta':
-        // AI is speaking - streaming transcript
         if (event.delta) {
           setIsAiSpeaking(true);
           addTranscriptEntry({
@@ -283,7 +145,6 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
         break;
 
       case 'response.audio_transcript.done':
-        // AI finished speaking this response
         if (event.transcript) {
           addTranscriptEntry({
             role: 'assistant',
@@ -300,44 +161,195 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
         break;
 
       case 'error':
-        console.error('Realtime API error:', event.error);
+        console.error('[Realtime] API error:', event.error);
         setError(new Error(event.error?.message || 'Realtime API error'));
         break;
     }
   }, [addTranscriptEntry, requestInitialResponse]);
 
-  const disconnect = useCallback(() => {
-    // Close data channel
-    if (dataChannelRef.current) {
-      dataChannelRef.current.close();
-      dataChannelRef.current = null;
+  const connect = useCallback(async () => {
+    if (isConnectingRef.current) {
+      console.log('[Realtime] Connection already in progress');
+      return;
     }
-
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-
-    // Only stop media stream if we created it (not external)
-    if (mediaStreamRef.current && !optionsRef.current.externalAudioStream) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    mediaStreamRef.current = null;
-
-    // Clean up audio element
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.srcObject = null;
-      audioElementRef.current.remove(); // Remove from DOM
-      audioElementRef.current = null;
-    }
-
+    
+    isConnectingRef.current = true;
     hasRequestedInitialResponseRef.current = false;
+    
+    console.log('[Realtime] Starting connection...');
+    
+    try {
+      updateStatus('connecting');
+      setError(null);
 
-    updateStatus('disconnected');
-    setIsAiSpeaking(false);
-  }, [updateStatus]);
+      let stream: MediaStream;
+      const currentOptions = optionsRef.current;
+      
+      if (currentOptions.externalAudioStream) {
+        stream = currentOptions.externalAudioStream;
+        console.log('[Realtime] Using external audio stream with tracks:', stream.getAudioTracks().length);
+      } else {
+        console.log('[Realtime] Requesting microphone access...');
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('[Realtime] Created new audio stream');
+      }
+      mediaStreamRef.current = stream;
+
+      console.log('[Realtime] Fetching session token...');
+      const { data, error: fnError } = await supabase.functions.invoke('realtime-session', {
+        body: {
+          guestName: currentOptions.guestName,
+          guestBio: currentOptions.guestBio,
+          topic: currentOptions.topic,
+        },
+      });
+
+      if (fnError) {
+        console.error('[Realtime] Edge function error:', fnError);
+        throw new Error(fnError.message || 'Failed to get session token');
+      }
+
+      if (!data?.client_secret?.value) {
+        console.error('[Realtime] Invalid response from edge function:', data);
+        throw new Error('Failed to get session token - invalid response');
+      }
+
+      const EPHEMERAL_KEY = data.client_secret.value;
+      console.log('[Realtime] Got session token, expires:', data.expires_at);
+
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      });
+      peerConnectionRef.current = pc;
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('[Realtime] ICE connection state:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'failed') {
+          console.error('[Realtime] ICE connection failed');
+          setError(new Error('Network connection failed. Please check your internet connection.'));
+          updateStatus('error');
+        }
+      };
+      
+      pc.onconnectionstatechange = () => {
+        console.log('[Realtime] Peer connection state:', pc.connectionState);
+        if (pc.connectionState === 'failed') {
+          console.error('[Realtime] Peer connection failed');
+          setError(new Error('Connection to voice service failed.'));
+          updateStatus('error');
+        }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        console.log('[Realtime] ICE gathering state:', pc.iceGatheringState);
+      };
+
+      const audioEl = document.createElement('audio');
+      audioEl.autoplay = true;
+      audioEl.id = 'aegis-realtime-audio';
+      const existingAudio = document.getElementById('aegis-realtime-audio');
+      if (existingAudio) existingAudio.remove();
+      document.body.appendChild(audioEl);
+      audioElementRef.current = audioEl;
+      
+      pc.ontrack = (e) => {
+        console.log('[Realtime] ✅ Received audio track from Aegis');
+        audioEl.srcObject = e.streams[0];
+        audioEl.play().catch(err => console.warn('[Realtime] Audio autoplay blocked:', err));
+      };
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) {
+        throw new Error('No audio track found in stream');
+      }
+      console.log('[Realtime] Adding audio track to peer connection:', audioTrack.label);
+      pc.addTrack(audioTrack, stream);
+
+      const dc = pc.createDataChannel('oai-events');
+      dataChannelRef.current = dc;
+
+      dc.onopen = () => {
+        console.log('[Realtime] ✅ Data channel opened');
+        updateStatus('connected');
+        setTimeout(() => requestInitialResponse('datachannel.open'), 400);
+      };
+
+      dc.onclose = () => {
+        console.log('[Realtime] Data channel closed');
+      };
+
+      dc.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          handleRealtimeEvent(event);
+        } catch (err) {
+          console.error('[Realtime] Failed to parse event:', err);
+        }
+      };
+
+      dc.onerror = (e) => {
+        console.error('[Realtime] Data channel error:', e);
+      };
+
+      console.log('[Realtime] Creating WebRTC offer...');
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      console.log('[Realtime] Local description set');
+
+      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
+        console.log('[Realtime] Connection was closed during setup');
+        isConnectingRef.current = false;
+        return;
+      }
+
+      const baseUrl = 'https://api.openai.com/v1/realtime';
+      const model = 'gpt-4o-realtime-preview-2024-12-17';
+      
+      console.log('[Realtime] Sending SDP offer to OpenAI...');
+      const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+        method: 'POST',
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${EPHEMERAL_KEY}`,
+          'Content-Type': 'application/sdp',
+        },
+      });
+
+      if (!sdpResponse.ok) {
+        const errText = await sdpResponse.text();
+        console.error('[Realtime] SDP response error:', sdpResponse.status, errText);
+        throw new Error(`Failed to establish connection: ${sdpResponse.status} - ${errText}`);
+      }
+
+      const answerSdp = await sdpResponse.text();
+      console.log('[Realtime] Got SDP answer from OpenAI');
+      
+      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
+        console.log('[Realtime] Connection was closed before setting remote description');
+        isConnectingRef.current = false;
+        return;
+      }
+      
+      await pc.setRemoteDescription({
+        type: 'answer',
+        sdp: answerSdp,
+      });
+      console.log('[Realtime] Remote description set - connection should establish soon');
+
+    } catch (err) {
+      console.error('[Realtime] Connection error:', err);
+      const error = err instanceof Error ? err : new Error('Connection failed');
+      setError(error);
+      updateStatus('error');
+      options.onError?.(error);
+      disconnect();
+    } finally {
+      isConnectingRef.current = false;
+    }
+  }, [options, updateStatus, disconnect, handleRealtimeEvent, requestInitialResponse]);
 
   const sendTextMessage = useCallback((text: string) => {
     if (dataChannelRef.current?.readyState === 'open') {
@@ -350,8 +362,6 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
         },
       };
       dataChannelRef.current.send(JSON.stringify(event));
-      
-      // Also trigger a response
       dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
       
       addTranscriptEntry({
@@ -367,7 +377,6 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     setTranscript([]);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       disconnect();
