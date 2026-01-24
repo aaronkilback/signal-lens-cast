@@ -47,7 +47,17 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     options.onTranscript?.(entry);
   }, [options]);
 
+  const isConnectingRef = useRef(false);
+
   const connect = useCallback(async () => {
+    // Prevent duplicate connection attempts
+    if (isConnectingRef.current || status === 'connected' || status === 'connecting') {
+      console.log('Connection already in progress or established');
+      return;
+    }
+    
+    isConnectingRef.current = true;
+    
     try {
       updateStatus('connecting');
       setError(null);
@@ -113,6 +123,13 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      // Check if connection was closed during async operations
+      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
+        console.log('Connection was closed during setup');
+        isConnectingRef.current = false;
+        return;
+      }
+
       // Send offer to OpenAI Realtime API
       const baseUrl = 'https://api.openai.com/v1/realtime';
       const model = 'gpt-4o-realtime-preview-2024-12-17';
@@ -132,6 +149,14 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       }
 
       const answerSdp = await sdpResponse.text();
+      
+      // Final check before setting remote description
+      if (!peerConnectionRef.current || peerConnectionRef.current !== pc) {
+        console.log('Connection was closed before setting remote description');
+        isConnectingRef.current = false;
+        return;
+      }
+      
       await pc.setRemoteDescription({
         type: 'answer',
         sdp: answerSdp,
@@ -144,8 +169,10 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       updateStatus('error');
       options.onError?.(error);
       disconnect();
+    } finally {
+      isConnectingRef.current = false;
     }
-  }, [options, updateStatus]);
+  }, [options, updateStatus, status]);
 
   const handleRealtimeEvent = useCallback((event: any) => {
     console.log('Realtime event:', event.type);
