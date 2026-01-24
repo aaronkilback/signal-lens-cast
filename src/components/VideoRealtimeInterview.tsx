@@ -80,29 +80,34 @@ export function VideoRealtimeInterview({
 
   const handleStartInterview = async () => {
     try {
-      // Get webcam stream first
+      // Get webcam stream first - use lower resolution for less lag
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: 1280, height: 720, facingMode: 'user' },
-        audio: true
+        video: { 
+          width: { ideal: 640, max: 1280 }, 
+          height: { ideal: 480, max: 720 }, 
+          facingMode: 'user',
+          frameRate: { ideal: 24, max: 30 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
       setWebcamStream(stream);
       setAudioStream(stream);
+      
+      // Small delay to ensure stream is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Now connect and start recording
+      await connect();
+      startRecording(() => isAiSpeakingRef.current);
       setIsReady(true);
     } catch (err) {
-      console.error('Failed to get media:', err);
+      console.error('Failed to start interview:', err);
     }
   };
-
-  // Connect to realtime API once stream is ready
-  useEffect(() => {
-    if (isReady && webcamStream && status === 'disconnected') {
-      const startConnection = async () => {
-        await connect();
-        startRecording(() => isAiSpeakingRef.current);
-      };
-      startConnection();
-    }
-  }, [isReady, webcamStream, status, connect, startRecording]);
 
   const handleEndInterview = () => {
     // Stop recording first
