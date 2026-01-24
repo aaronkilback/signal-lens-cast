@@ -40,9 +40,10 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
   }, [options]);
 
   const updateStatus = useCallback((newStatus: ConnectionStatus) => {
+    console.log('[Realtime] Status changing to:', newStatus);
     setStatus(newStatus);
-    options.onStatusChange?.(newStatus);
-  }, [options]);
+    optionsRef.current.onStatusChange?.(newStatus);
+  }, []);
 
   const addTranscriptEntry = useCallback((entry: TranscriptEntry) => {
     setTranscript(prev => {
@@ -167,7 +168,7 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     }
   }, [addTranscriptEntry, requestInitialResponse]);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (audioStreamOverride?: MediaStream) => {
     if (isConnectingRef.current) {
       console.log('[Realtime] Connection already in progress');
       return;
@@ -185,7 +186,11 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       let stream: MediaStream;
       const currentOptions = optionsRef.current;
       
-      if (currentOptions.externalAudioStream) {
+      // Priority: override > external stream from options > request new mic
+      if (audioStreamOverride) {
+        stream = audioStreamOverride;
+        console.log('[Realtime] Using override audio stream with tracks:', stream.getAudioTracks().length);
+      } else if (currentOptions.externalAudioStream) {
         stream = currentOptions.externalAudioStream;
         console.log('[Realtime] Using external audio stream with tracks:', stream.getAudioTracks().length);
       } else {
@@ -344,12 +349,12 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       const error = err instanceof Error ? err : new Error('Connection failed');
       setError(error);
       updateStatus('error');
-      options.onError?.(error);
+      optionsRef.current.onError?.(error);
       disconnect();
     } finally {
       isConnectingRef.current = false;
     }
-  }, [options, updateStatus, disconnect, handleRealtimeEvent, requestInitialResponse]);
+  }, [updateStatus, disconnect, handleRealtimeEvent, requestInitialResponse]);
 
   const sendTextMessage = useCallback((text: string) => {
     if (dataChannelRef.current?.readyState === 'open') {
