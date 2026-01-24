@@ -73,7 +73,7 @@ Start by welcoming ${guestName} to the show and asking them about their backgrou
     // Create ephemeral session token using the unified interface
     const sessionConfig = {
       model: "gpt-4o-realtime-preview",
-      voice: "onyx", // Aegis's voice
+      voice: "ash", // Aegis's voice - deep, authoritative tone
       instructions: contextInstructions,
       input_audio_transcription: {
         model: "whisper-1"
