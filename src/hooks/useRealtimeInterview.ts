@@ -12,6 +12,7 @@ interface UseRealtimeInterviewOptions {
   guestName?: string;
   guestBio?: string;
   topic?: string;
+  externalAudioStream?: MediaStream; // Allow passing an external audio stream
   onTranscript?: (entry: TranscriptEntry) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: ConnectionStatus) => void;
@@ -62,8 +63,13 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       updateStatus('connecting');
       setError(null);
 
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Use external audio stream if provided, otherwise request microphone
+      let stream: MediaStream;
+      if (options.externalAudioStream) {
+        stream = options.externalAudioStream;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       mediaStreamRef.current = stream;
 
       // Get ephemeral token from our edge function
@@ -252,11 +258,11 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       peerConnectionRef.current = null;
     }
 
-    // Stop media stream
-    if (mediaStreamRef.current) {
+    // Only stop media stream if we created it (not external)
+    if (mediaStreamRef.current && !options.externalAudioStream) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
     }
+    mediaStreamRef.current = null;
 
     // Clean up audio element
     if (audioElementRef.current) {

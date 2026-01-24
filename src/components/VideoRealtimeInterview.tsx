@@ -25,6 +25,7 @@ export function VideoRealtimeInterview({
 }: VideoRealtimeInterviewProps) {
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isReady, setIsReady] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAiSpeakingRef = useRef(false);
 
@@ -40,6 +41,7 @@ export function VideoRealtimeInterview({
     guestName,
     guestBio,
     topic,
+    externalAudioStream: webcamStream || undefined, // Pass the webcam's audio stream
     onError: (err) => console.error('Interview error:', err),
   });
 
@@ -78,23 +80,29 @@ export function VideoRealtimeInterview({
 
   const handleStartInterview = async () => {
     try {
-      // Get webcam stream
+      // Get webcam stream first
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { width: 1280, height: 720, facingMode: 'user' },
-        audio: true // We need audio for the recording
+        audio: true
       });
       setWebcamStream(stream);
       setAudioStream(stream);
-      
-      // Connect to realtime API
-      await connect();
-      
-      // Start video recording
-      startRecording(() => isAiSpeakingRef.current);
+      setIsReady(true);
     } catch (err) {
-      console.error('Failed to start interview:', err);
+      console.error('Failed to get media:', err);
     }
   };
+
+  // Connect to realtime API once stream is ready
+  useEffect(() => {
+    if (isReady && webcamStream && status === 'disconnected') {
+      const startConnection = async () => {
+        await connect();
+        startRecording(() => isAiSpeakingRef.current);
+      };
+      startConnection();
+    }
+  }, [isReady, webcamStream, status, connect, startRecording]);
 
   const handleEndInterview = () => {
     // Stop recording first
