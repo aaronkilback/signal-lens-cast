@@ -55,6 +55,27 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
   }, [options]);
 
   const isConnectingRef = useRef(false);
+  const hasRequestedInitialResponseRef = useRef(false);
+
+  const requestInitialResponse = useCallback((reason: string) => {
+    const dc = dataChannelRef.current;
+    if (!dc || dc.readyState !== 'open') return;
+    if (hasRequestedInitialResponseRef.current) return;
+
+    hasRequestedInitialResponseRef.current = true;
+    console.log(`Requesting initial Aegis response (${reason})`);
+    dc.send(
+      JSON.stringify({
+        type: 'response.create',
+        response: {
+          // Explicitly request audio to avoid “connected but silent” sessions
+          modalities: ['audio', 'text'],
+          instructions:
+            "Begin the interview now. You are the host and you must speak first with your warm introduction, then welcome the guest and ask the first question.",
+        },
+      })
+    );
+  }, []);
 
   const connect = useCallback(async () => {
     // Prevent duplicate connection attempts
@@ -98,9 +119,18 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
 
       const EPHEMERAL_KEY = data.client_secret.value;
 
-      // Create peer connection
-      const pc = new RTCPeerConnection();
+      // Create peer connection (add STUN for more reliable connectivity)
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
       peerConnectionRef.current = pc;
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', pc.iceConnectionState);
+      };
+      pc.onconnectionstatechange = () => {
+        console.log('Peer connection state:', pc.connectionState);
+      };
 
       // Set up audio playback - append to body to ensure it can play
       const audioEl = document.createElement('audio');
@@ -134,15 +164,10 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       dc.onopen = () => {
         console.log('Data channel opened');
         updateStatus('connected');
-        
-        // Trigger Aegis to start speaking first (as the host)
-        // Small delay to ensure session is fully ready
-        setTimeout(() => {
-          if (dc.readyState === 'open') {
-            console.log('Sending response.create to trigger Aegis greeting');
-            dc.send(JSON.stringify({ type: 'response.create' }));
-          }
-        }, 500);
+
+        // Some sessions never speak unless we explicitly request the first response.
+        // We'll also request again on `session.created` (whichever happens first).
+        setTimeout(() => requestInitialResponse('datachannel.open'), 400);
       };
 
       dc.onmessage = (e) => {
@@ -171,7 +196,8 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
 
       // Send offer to OpenAI Realtime API
       const baseUrl = 'https://api.openai.com/v1/realtime';
-      const model = 'gpt-4o-realtime-preview-2024-12-17';
+      // Must match the model used when creating the session token
+      const model = 'gpt-4o-realtime-preview';
       
       const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
         method: 'POST',
@@ -219,6 +245,8 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     switch (event.type) {
       case 'session.created':
         console.log('Session created:', event.session?.id);
+        // Ensure Aegis speaks first even if user doesn't talk.
+        requestInitialResponse('session.created');
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -276,7 +304,7 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
         setError(new Error(event.error?.message || 'Realtime API error'));
         break;
     }
-  }, [addTranscriptEntry]);
+  }, [addTranscriptEntry, requestInitialResponse]);
 
   const disconnect = useCallback(() => {
     // Close data channel
@@ -304,6 +332,8 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
       audioElementRef.current.remove(); // Remove from DOM
       audioElementRef.current = null;
     }
+
+    hasRequestedInitialResponseRef.current = false;
 
     updateStatus('disconnected');
     setIsAiSpeaking(false);
