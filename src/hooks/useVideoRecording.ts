@@ -7,9 +7,11 @@ interface UseVideoRecordingOptions {
 }
 
 export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
-  const { width = 1920, height = 1080, frameRate = 30 } = options;
+  // Defaults tuned for reliability/performance (1920x1080@30fps can lag badly on many machines)
+  const { width = 1280, height = 720, frameRate = 24 } = options;
   
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   
@@ -19,6 +21,10 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
   const animationFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPausedMsRef = useRef<number>(0);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const isAiSpeakingGetterRef = useRef<(() => boolean) | null>(null);
   
   // Sources for compositing
   const avatarImageRef = useRef<HTMLImageElement | null>(null);
@@ -145,6 +151,38 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
     ctx.fillText('Interview', halfWidth + 40, canvasHeight - 30);
   }, [width, height]);
 
+  const stopLoops = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+  }, []);
+
+  const startLoops = useCallback(() => {
+    const ctx = ctxRef.current;
+    const getter = isAiSpeakingGetterRef.current;
+    if (!ctx || !getter) return;
+
+    // Render loop
+    const renderLoop = () => {
+      drawFrame(ctx, getter());
+      animationFrameRef.current = requestAnimationFrame(renderLoop);
+    };
+    renderLoop();
+
+    // Duration loop
+    durationIntervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const pausedMs = totalPausedMsRef.current;
+      const seconds = Math.floor((now - startTimeRef.current - pausedMs) / 1000);
+      setRecordingDuration(Math.max(0, seconds));
+    }, 1000);
+  }, [drawFrame]);
+
   const startRecording = useCallback(async (isAiSpeakingGetter: () => boolean) => {
     if (!canvasRef.current) {
       // Create canvas if not exists
@@ -157,16 +195,20 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
+
+    ctxRef.current = ctx;
+    isAiSpeakingGetterRef.current = isAiSpeakingGetter;
     
     chunksRef.current = [];
     setRecordedBlob(null);
+    setIsPaused(false);
+    pausedAtRef.current = null;
+    totalPausedMsRef.current = 0;
     
-    // Start animation loop
-    const renderLoop = () => {
-      drawFrame(ctx, isAiSpeakingGetter());
-      animationFrameRef.current = requestAnimationFrame(renderLoop);
-    };
-    renderLoop();
+    // Start render + duration loops
+    startTimeRef.current = Date.now();
+    setRecordingDuration(0);
+    startLoops();
     
     // Get canvas stream
     const canvasStream = canvas.captureStream(frameRate);
@@ -192,7 +234,8 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
     
     const mediaRecorder = new MediaRecorder(combinedStream, {
       mimeType,
-      videoBitsPerSecond: 5000000, // 5 Mbps for good quality
+      // Lower bitrate reduces CPU usage + dropped frames; still fine for most YouTube uploads
+      videoBitsPerSecond: 2500000,
     });
     
     mediaRecorder.ondataavailable = (e) => {
@@ -208,35 +251,56 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
     
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start(1000); // Collect data every second
-    
-    startTimeRef.current = Date.now();
-    setRecordingDuration(0);
-    
-    // Update duration every second
-    durationIntervalRef.current = setInterval(() => {
-      setRecordingDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
-    }, 1000);
-    
+
     setIsRecording(true);
   }, [width, height, frameRate, drawFrame]);
 
   const stopRecording = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
+    stopLoops();
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    
+
     setIsRecording(false);
+    setIsPaused(false);
+    pausedAtRef.current = null;
   }, []);
+
+  const pauseRecording = useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state !== 'recording') return;
+
+    pausedAtRef.current = Date.now();
+    try {
+      mr.pause();
+      setIsPaused(true);
+      stopLoops();
+    } catch (e) {
+      console.warn('Pause not supported:', e);
+    }
+  }, [stopLoops]);
+
+  const resumeRecording = useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (mr.state !== 'paused') return;
+
+    const pausedAt = pausedAtRef.current;
+    if (pausedAt) {
+      totalPausedMsRef.current += Date.now() - pausedAt;
+    }
+    pausedAtRef.current = null;
+
+    try {
+      mr.resume();
+      setIsPaused(false);
+      startLoops();
+    } catch (e) {
+      console.warn('Resume not supported:', e);
+    }
+  }, [startLoops]);
 
   const downloadRecording = useCallback((filename?: string) => {
     if (!recordedBlob) return;
@@ -265,6 +329,7 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
 
   return {
     isRecording,
+    isPaused,
     recordedBlob,
     recordingDuration,
     loadAvatarImage,
@@ -272,6 +337,8 @@ export function useVideoRecording(options: UseVideoRecordingOptions = {}) {
     setAudioStream,
     startRecording,
     stopRecording,
+    pauseRecording,
+    resumeRecording,
     downloadRecording,
     getPreviewCanvas,
   };

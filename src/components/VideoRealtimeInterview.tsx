@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Phone, PhoneOff, Video, VideoOff, Download, Trash2, Circle } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Phone, PhoneOff, Video, VideoOff, Download, Trash2, Circle, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -47,6 +47,7 @@ export function VideoRealtimeInterview({
 
   const {
     isRecording,
+    isPaused,
     recordedBlob,
     recordingDuration,
     loadAvatarImage,
@@ -54,8 +55,15 @@ export function VideoRealtimeInterview({
     setAudioStream,
     startRecording,
     stopRecording,
+    pauseRecording,
+    resumeRecording,
     downloadRecording,
   } = useVideoRecording();
+
+  const canEnd = useMemo(
+    () => Boolean(webcamStream) || isRecording || status !== 'disconnected',
+    [webcamStream, isRecording, status]
+  );
 
   // Keep ref in sync for recording
   useEffect(() => {
@@ -83,10 +91,10 @@ export function VideoRealtimeInterview({
       // Get webcam stream first - use lower resolution for less lag
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          width: { ideal: 640, max: 1280 }, 
-          height: { ideal: 480, max: 720 }, 
+          width: { ideal: 640, max: 640 }, 
+          height: { ideal: 360, max: 360 }, 
           facingMode: 'user',
-          frameRate: { ideal: 24, max: 30 }
+          frameRate: { ideal: 20, max: 24 }
         },
         audio: {
           echoCancellation: true,
@@ -243,7 +251,7 @@ export function VideoRealtimeInterview({
         {/* Controls */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            {status === 'disconnected' ? (
+            {!canEnd ? (
               <Button 
                 onClick={handleStartInterview} 
                 className="gap-2"
@@ -263,6 +271,20 @@ export function VideoRealtimeInterview({
                   <PhoneOff className="h-4 w-4" />
                   End & Save
                 </Button>
+
+                {isRecording && (
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    size="lg"
+                    onClick={isPaused ? resumeRecording : pauseRecording}
+                    title={isPaused ? 'Resume recording' : 'Pause recording'}
+                  >
+                    {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                    {isPaused ? 'Resume' : 'Pause'}
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   size="icon"
