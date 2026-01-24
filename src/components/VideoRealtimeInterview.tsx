@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Phone, PhoneOff, Video, VideoOff, Download, Trash2, Circle, Pause, Play } from 'lucide-react';
+import { Phone, PhoneOff, Video, VideoOff, Download, Trash2, Circle, Pause, Play, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { useRealtimeInterview, TranscriptEntry, ConnectionStatus } from '@/hooks/useRealtimeInterview';
 import { useVideoRecording } from '@/hooks/useVideoRecording';
 import { SplitScreenPreview } from '@/components/SplitScreenPreview';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import aegisAvatar from '@/assets/aegis-avatar.png';
 
@@ -23,11 +26,18 @@ export function VideoRealtimeInterview({
   topic,
   onInterviewComplete,
 }: VideoRealtimeInterviewProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isReady, setIsReady] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isAiSpeakingRef = useRef(false);
+  const recordingStartTime = useRef<number | null>(null);
 
   const {
     status,
@@ -89,7 +99,29 @@ export function VideoRealtimeInterview({
   const handleStartInterview = async () => {
     try {
       console.log('[VideoInterview] Starting interview...');
-      // Get webcam stream first - use lower resolution for less lag
+      
+      // Create interview session first if we have a user
+      if (user) {
+        const { data: session, error: sessionError } = await supabase
+          .from('interview_sessions')
+          .insert({
+            host_user_id: user.id,
+            guest_user_id: user.id, // Host is also the guest in this case
+            invitation_id: null,
+            status: 'recording',
+          })
+          .select()
+          .single();
+
+        if (sessionError) {
+          console.error('[VideoInterview] Failed to create session:', sessionError);
+        } else {
+          setSessionId(session.id);
+          console.log('[VideoInterview] Created session:', session.id);
+        }
+      }
+      
+      // Get webcam stream - use lower resolution for less lag
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 640, max: 640 }, 
@@ -113,14 +145,20 @@ export function VideoRealtimeInterview({
       await connect(stream);
       
       console.log('[VideoInterview] Starting recording...');
+      recordingStartTime.current = Date.now();
       startRecording(() => isAiSpeakingRef.current);
       setIsReady(true);
     } catch (err) {
       console.error('[VideoInterview] Failed to start interview:', err);
+      toast({
+        title: 'Failed to start',
+        description: err instanceof Error ? err.message : 'Could not start interview',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleEndInterview = () => {
+  const handleEndInterview = async () => {
     // Stop recording first
     stopRecording();
     
@@ -135,6 +173,94 @@ export function VideoRealtimeInterview({
     
     onInterviewComplete?.(transcript);
   };
+
+  // Upload to cloud when recordedBlob becomes available
+  useEffect(() => {
+    const uploadToCloud = async () => {
+      if (!recordedBlob || !user || isSaving || isSaved) return;
+      
+      setIsSaving(true);
+      console.log('[VideoInterview] Uploading to cloud...');
+      
+      try {
+        // Create session if we don't have one
+        let currentSessionId = sessionId;
+        if (!currentSessionId) {
+          const { data: session, error } = await supabase
+            .from('interview_sessions')
+            .insert({
+              host_user_id: user.id,
+              guest_user_id: user.id,
+              invitation_id: null,
+              status: 'completed',
+            })
+            .select()
+            .single();
+          
+          if (error) throw error;
+          currentSessionId = session.id;
+          setSessionId(currentSessionId);
+        }
+        
+        // Generate unique file path
+        const segmentId = crypto.randomUUID();
+        const filePath = `${user.id}/${currentSessionId}/${segmentId}.webm`;
+        
+        // Upload to storage
+        const { error: uploadError } = await supabase.storage
+          .from('recordings')
+          .upload(filePath, recordedBlob, {
+            contentType: 'video/webm',
+            upsert: true,
+          });
+        
+        if (uploadError) throw uploadError;
+        console.log('[VideoInterview] Uploaded to:', filePath);
+        
+        // Save segment record
+        const transcriptText = transcript
+          .map(t => `${t.role === 'assistant' ? 'AEGIS' : guestName || 'GUEST'}: ${t.text}`)
+          .join('\n');
+        
+        const { error: insertError } = await supabase
+          .from('recording_segments')
+          .insert({
+            session_id: currentSessionId,
+            segment_number: 1,
+            transcript: transcriptText,
+            video_url: filePath,
+            status: 'completed',
+            start_time: recordingStartTime.current ? recordingStartTime.current / 1000 : null,
+            end_time: Date.now() / 1000,
+          });
+        
+        if (insertError) throw insertError;
+        
+        // Update session status
+        await supabase
+          .from('interview_sessions')
+          .update({ status: 'completed' })
+          .eq('id', currentSessionId);
+        
+        setIsSaved(true);
+        toast({
+          title: 'Interview Saved',
+          description: 'Your recording has been saved to the cloud.',
+        });
+      } catch (err) {
+        console.error('[VideoInterview] Upload failed:', err);
+        toast({
+          title: 'Save Failed',
+          description: err instanceof Error ? err.message : 'Could not save to cloud. You can still download locally.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    
+    uploadToCloud();
+  }, [recordedBlob, user, sessionId, isSaving, isSaved, transcript, guestName, toast]);
 
   const toggleVideo = async () => {
     if (!webcamStream) return;
@@ -325,14 +451,28 @@ export function VideoRealtimeInterview({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Cloud save status */}
+            {isSaving && (
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Saving to cloud...
+              </Badge>
+            )}
+            {isSaved && (
+              <Badge variant="default" className="flex items-center gap-1.5 bg-green-600">
+                <Check className="h-3 w-3" />
+                Saved to cloud
+              </Badge>
+            )}
+            
             {recordedBlob && (
               <Button
-                variant="default"
+                variant="outline"
                 className="gap-2"
-                onClick={() => downloadRecording(`aegis-${guestName || 'interview'}-${new Date().toISOString().slice(0, 10)}.webm`)}
+                onClick={() => downloadRecording(`fortified-${guestName || 'interview'}-${new Date().toISOString().slice(0, 10)}.webm`)}
               >
                 <Download className="h-4 w-4" />
-                Download Video
+                Download
               </Button>
             )}
             {transcript.length > 0 && status === 'disconnected' && (
@@ -355,9 +495,15 @@ export function VideoRealtimeInterview({
           </p>
         )}
         
-        {recordedBlob && status === 'disconnected' && (
+        {recordedBlob && status === 'disconnected' && !isSaved && !isSaving && (
           <p className="text-xs text-muted-foreground text-center">
-            ✓ Video ready for download. Upload to YouTube for best results.
+            ✓ Video ready. Auto-saving to cloud...
+          </p>
+        )}
+        
+        {isSaved && (
+          <p className="text-xs text-muted-foreground text-center">
+            ✓ Recording saved to your library. You can also download a local copy.
           </p>
         )}
       </CardContent>

@@ -26,18 +26,53 @@ interface GuestProfile {
   voiceId: VoiceOption;
 }
 
+const INTERVIEW_STORAGE_KEY = 'aegis-interview-setup';
+
 export default function Interview() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  // Load persisted state from localStorage
+  const getInitialState = () => {
+    try {
+      const saved = localStorage.getItem(INTERVIEW_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load interview state:', e);
+    }
+    return {
+      selectedGuestId: null,
+      topic: '',
+      customGuestName: '',
+      customGuestBio: '',
+      interviewMode: 'video',
+    };
+  };
+
+  const initialState = getInitialState();
+  
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialState.selectedGuestId);
   const [selectedGuest, setSelectedGuest] = useState<GuestProfile | null>(null);
-  const [topic, setTopic] = useState('');
-  const [customGuestName, setCustomGuestName] = useState('');
-  const [customGuestBio, setCustomGuestBio] = useState('');
+  const [topic, setTopic] = useState(initialState.topic);
+  const [customGuestName, setCustomGuestName] = useState(initialState.customGuestName);
+  const [customGuestBio, setCustomGuestBio] = useState(initialState.customGuestBio);
   const [showInterview, setShowInterview] = useState(false);
-  const [interviewMode, setInterviewMode] = useState<'audio' | 'video'>('video');
+  const [interviewMode, setInterviewMode] = useState<'audio' | 'video'>(initialState.interviewMode);
   const [completedTranscript, setCompletedTranscript] = useState<TranscriptEntry[] | null>(null);
+
+  // Persist state to localStorage
+  useEffect(() => {
+    const state = {
+      selectedGuestId,
+      topic,
+      customGuestName,
+      customGuestBio,
+      interviewMode,
+    };
+    localStorage.setItem(INTERVIEW_STORAGE_KEY, JSON.stringify(state));
+  }, [selectedGuestId, topic, customGuestName, customGuestBio, interviewMode]);
 
   // Fetch selected guest data
   useEffect(() => {

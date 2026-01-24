@@ -280,7 +280,7 @@ export type Database = {
           guest_user_id: string
           host_user_id: string
           id: string
-          invitation_id: string
+          invitation_id: string | null
           status: string
           updated_at: string
         }
@@ -290,7 +290,7 @@ export type Database = {
           guest_user_id: string
           host_user_id: string
           id?: string
-          invitation_id: string
+          invitation_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -300,7 +300,7 @@ export type Database = {
           guest_user_id?: string
           host_user_id?: string
           id?: string
-          invitation_id?: string
+          invitation_id?: string | null
           status?: string
           updated_at?: string
         }
