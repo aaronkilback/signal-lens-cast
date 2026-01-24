@@ -62,14 +62,30 @@ export function useRealtimeInterview(options: UseRealtimeInterviewOptions = {}) 
     if (hasRequestedInitialResponseRef.current) return;
 
     hasRequestedInitialResponseRef.current = true;
-    console.log(`[Realtime] Requesting initial Aegis response (${reason})`);
+    const currentOptions = optionsRef.current;
+    const guestName = currentOptions.guestName;
+    const guestBio = currentOptions.guestBio;
+    
+    // Build explicit instructions with guest details
+    let promptInstructions = "Begin the interview now. You are the host of the Fortified podcast and you must speak first.";
+    
+    if (guestName) {
+      promptInstructions += ` Your guest today is ${guestName}.`;
+      if (guestBio) {
+        promptInstructions += ` Here is their background: ${guestBio}`;
+      }
+      promptInstructions += ` Start with a warm introduction to the Fortified podcast, then introduce ${guestName} by name with a brief summary of who they are based on their background, then welcome them to the show and ask the first question.`;
+    } else {
+      promptInstructions += " Welcome the listener to the Fortified podcast and have a general conversation.";
+    }
+
+    console.log(`[Realtime] Requesting initial Aegis response (${reason}) for guest: ${guestName || 'none'}`);
     dc.send(
       JSON.stringify({
         type: 'response.create',
         response: {
           modalities: ['audio', 'text'],
-          instructions:
-            "Begin the interview now. You are the host and you must speak first with your warm introduction, then welcome the guest and ask the first question.",
+          instructions: promptInstructions,
         },
       })
     );
