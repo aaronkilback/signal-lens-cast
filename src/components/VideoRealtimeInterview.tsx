@@ -147,12 +147,36 @@ export function VideoRealtimeInterview({
     onInterviewComplete?.(transcript);
   };
 
-  const toggleVideo = () => {
-    if (webcamStream) {
+  const toggleVideo = async () => {
+    if (!webcamStream) return;
+
+    if (isVideoEnabled) {
+      // Stop video track completely (turns off camera light)
       const videoTrack = webcamStream.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
+        videoTrack.stop();
+        // Remove from stream
+        webcamStream.removeTrack(videoTrack);
+      }
+      setIsVideoEnabled(false);
+    } else {
+      // Re-request video and add to existing stream
+      try {
+        const newVideoStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 360, max: 360 },
+            facingMode: 'user',
+            frameRate: { ideal: 20, max: 24 }
+          }
+        });
+        const newVideoTrack = newVideoStream.getVideoTracks()[0];
+        if (newVideoTrack) {
+          webcamStream.addTrack(newVideoTrack);
+        }
+        setIsVideoEnabled(true);
+      } catch (err) {
+        console.error('[VideoInterview] Failed to re-enable camera:', err);
       }
     }
   };
