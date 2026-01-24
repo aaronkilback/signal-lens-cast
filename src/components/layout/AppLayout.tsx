@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Mic, Library, FileText, LogOut, User } from 'lucide-react';
+import { Shield, Mic, Radio, Library, FileText, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +17,7 @@ interface AppLayoutProps {
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: Shield },
   { path: '/generate', label: 'Generate', icon: Mic },
+  { path: '/interview', label: 'Interview', icon: Radio },
   { path: '/library', label: 'Library', icon: Library },
   { path: '/doctrine', label: 'Doctrine', icon: FileText },
 ];

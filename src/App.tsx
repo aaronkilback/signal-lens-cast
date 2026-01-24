@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Generate from "./pages/Generate";
+import Interview from "./pages/Interview";
 import LibraryPage from "./pages/Library";
 import Doctrine from "./pages/Doctrine";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Generate />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/interview"
+              element={
+                <ProtectedRoute>
+                  <Interview />
                 </ProtectedRoute>
               }
             />
