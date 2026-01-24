@@ -171,15 +171,65 @@ export type Database = {
           },
         ]
       }
+      guest_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          expires_at: string
+          guest_email: string | null
+          guest_name: string
+          guest_user_id: string | null
+          host_user_id: string
+          id: string
+          invite_token: string
+          status: string
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          expires_at?: string
+          guest_email?: string | null
+          guest_name: string
+          guest_user_id?: string | null
+          host_user_id: string
+          id?: string
+          invite_token?: string
+          status?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          expires_at?: string
+          guest_email?: string | null
+          guest_name?: string
+          guest_user_id?: string | null
+          host_user_id?: string
+          id?: string
+          invite_token?: string
+          status?: string
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       guest_profiles: {
         Row: {
           bio: string
           created_at: string
+          cta_text: string | null
+          cta_url: string | null
           display_name: string
           expertise: string[]
           id: string
+          invitation_id: string | null
           name: string
           notable_quotes: string[] | null
+          onboarding_completed: boolean | null
+          social_links: Json | null
           speaking_style: string | null
           updated_at: string
           user_id: string
@@ -188,11 +238,16 @@ export type Database = {
         Insert: {
           bio: string
           created_at?: string
+          cta_text?: string | null
+          cta_url?: string | null
           display_name: string
           expertise?: string[]
           id?: string
+          invitation_id?: string | null
           name: string
           notable_quotes?: string[] | null
+          onboarding_completed?: boolean | null
+          social_links?: Json | null
           speaking_style?: string | null
           updated_at?: string
           user_id: string
@@ -201,17 +256,63 @@ export type Database = {
         Update: {
           bio?: string
           created_at?: string
+          cta_text?: string | null
+          cta_url?: string | null
           display_name?: string
           expertise?: string[]
           id?: string
+          invitation_id?: string | null
           name?: string
           notable_quotes?: string[] | null
+          onboarding_completed?: boolean | null
+          social_links?: Json | null
           speaking_style?: string | null
           updated_at?: string
           user_id?: string
           voice_id?: string
         }
         Relationships: []
+      }
+      interview_sessions: {
+        Row: {
+          created_at: string
+          final_video_url: string | null
+          guest_user_id: string
+          host_user_id: string
+          id: string
+          invitation_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          final_video_url?: string | null
+          guest_user_id: string
+          host_user_id: string
+          id?: string
+          invitation_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          final_video_url?: string | null
+          guest_user_id?: string
+          host_user_id?: string
+          id?: string
+          invitation_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_sessions_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "guest_invitations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       marketing_assets: {
         Row: {
@@ -277,6 +378,66 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      recording_segments: {
+        Row: {
+          created_at: string
+          end_time: number | null
+          id: string
+          is_retake: boolean | null
+          original_segment_id: string | null
+          segment_number: number
+          session_id: string
+          start_time: number | null
+          status: string
+          transcript: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_time?: number | null
+          id?: string
+          is_retake?: boolean | null
+          original_segment_id?: string | null
+          segment_number: number
+          session_id: string
+          start_time?: number | null
+          status?: string
+          transcript?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_time?: number | null
+          id?: string
+          is_retake?: boolean | null
+          original_segment_id?: string | null
+          segment_number?: number
+          session_id?: string
+          start_time?: number | null
+          status?: string
+          transcript?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_segments_original_segment_id_fkey"
+            columns: ["original_segment_id"]
+            isOneToOne: false
+            referencedRelation: "recording_segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recording_segments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -12,6 +12,8 @@ import Generate from "./pages/Generate";
 import Interview from "./pages/Interview";
 import LibraryPage from "./pages/Library";
 import Doctrine from "./pages/Doctrine";
+import GuestPortal from "./pages/GuestPortal";
+import GuestInvitations from "./pages/GuestInvitations";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +69,16 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/invitations"
+              element={
+                <ProtectedRoute>
+                  <GuestInvitations />
+                </ProtectedRoute>
+              }
+            />
+            {/* Guest portal - no auth required initially */}
+            <Route path="/guest/:token" element={<GuestPortal />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
