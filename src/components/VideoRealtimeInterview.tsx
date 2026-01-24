@@ -86,8 +86,26 @@ export function VideoRealtimeInterview({
     setWebcamVideo(video);
   }, [setWebcamVideo]);
 
+  // Track if we should connect after stream is set
+  const pendingConnectRef = useRef(false);
+
+  // When webcamStream changes and we have a pending connect, do it
+  useEffect(() => {
+    if (pendingConnectRef.current && webcamStream) {
+      pendingConnectRef.current = false;
+      console.log('[VideoInterview] Stream ready, connecting...');
+      connect().then(() => {
+        startRecording(() => isAiSpeakingRef.current);
+        setIsReady(true);
+      }).catch(err => {
+        console.error('[VideoInterview] Connect failed:', err);
+      });
+    }
+  }, [webcamStream, connect, startRecording]);
+
   const handleStartInterview = async () => {
     try {
+      console.log('[VideoInterview] Starting interview...');
       // Get webcam stream first - use lower resolution for less lag
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
@@ -102,18 +120,14 @@ export function VideoRealtimeInterview({
           autoGainControl: true
         }
       });
-      setWebcamStream(stream);
+      console.log('[VideoInterview] Got media stream with', stream.getAudioTracks().length, 'audio tracks');
+      
       setAudioStream(stream);
-      
-      // Small delay to ensure stream is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Now connect and start recording
-      await connect();
-      startRecording(() => isAiSpeakingRef.current);
-      setIsReady(true);
+      // Set pending flag BEFORE setting stream so the effect picks it up
+      pendingConnectRef.current = true;
+      setWebcamStream(stream);
     } catch (err) {
-      console.error('Failed to start interview:', err);
+      console.error('[VideoInterview] Failed to start interview:', err);
     }
   };
 
