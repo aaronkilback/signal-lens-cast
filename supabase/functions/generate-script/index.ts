@@ -611,6 +611,17 @@ CRITICAL REMINDER - TTS-READY OUTPUT:
 - Every word you write will be read directly by text-to-speech
 - The output must be a polished, speakable podcast script ready for audio conversion
 
+QUALITY REQUIREMENTS (CRITICAL - READ CAREFULLY):
+- Every sentence MUST be grammatically complete with a subject and verb
+- NEVER leave a sentence fragment or incomplete thought
+- NEVER cut off mid-sentence or mid-thought
+- Re-read each paragraph before moving on to ensure it flows naturally
+- If you reference something, complete the thought: don't say "The thing about security is..." and then change topics
+- Avoid run-on sentences that lose their point
+- If a sentence is getting too long, end it and start a new one
+- Double-check that transitions between ideas are clear and complete
+- Every story must have a clear beginning, middle, and end—don't abandon stories mid-way
+
 You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation.` : ""} Paint the destination. Transfer certainty. End with the CTA verbatim.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
