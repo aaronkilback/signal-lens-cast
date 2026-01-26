@@ -28,11 +28,14 @@ import {
   OutputMode,
   VoiceOption,
   GuestProfile,
+  DeepDiveMediaType,
   AUDIENCE_OPTIONS,
   LIFE_DOMAIN_OPTIONS,
   OUTPUT_MODE_OPTIONS,
   VOICE_OPTIONS,
+  DEEP_DIVE_MEDIA_OPTIONS,
 } from '@/lib/aegis-types';
+import { Input } from '@/components/ui/input';
 
 const toneLabels: Record<number, ToneIntensity> = {
   0: 'clinical',
@@ -335,13 +338,29 @@ export default function Generate() {
   };
 
   const handleGenerate = async () => {
-    if (!config.topic.trim()) {
-      toast({
-        title: 'Topic Required',
-        description: 'Please enter a topic for Aegis to analyze.',
-        variant: 'destructive',
-      });
-      return;
+    // Deep Dive mode validation
+    if (config.outputMode === 'deep_dive') {
+      if (!config.deepDiveTitle?.trim()) {
+        toast({
+          title: 'Title Required',
+          description: 'Please enter the title of the book, movie, podcast, or other content to analyze.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      // Auto-set topic from deep dive title if not set
+      if (!config.topic.trim()) {
+        setConfig({ ...config, topic: `Deep Dive: ${config.deepDiveTitle}` });
+      }
+    } else {
+      if (!config.topic.trim()) {
+        toast({
+          title: 'Topic Required',
+          description: 'Please enter a topic for Aegis to analyze.',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     if (config.lifeDomains.length === 0) {
@@ -802,6 +821,47 @@ export default function Generate() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Deep Dive Mode Inputs */}
+                {config.outputMode === 'deep_dive' && (
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg border border-border">
+                    <div className="space-y-2">
+                      <Label>Media Type</Label>
+                      <Select
+                        value={config.deepDiveMediaType || 'book'}
+                        onValueChange={(value: DeepDiveMediaType) => setConfig({ ...config, deepDiveMediaType: value })}
+                      >
+                        <SelectTrigger className="bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DEEP_DIVE_MEDIA_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="deepDiveTitle">Title</Label>
+                      <Input
+                        id="deepDiveTitle"
+                        placeholder={
+                          DEEP_DIVE_MEDIA_OPTIONS.find(o => o.value === (config.deepDiveMediaType || 'book'))?.placeholder ||
+                          'Enter the title...'
+                        }
+                        value={config.deepDiveTitle || ''}
+                        onChange={(e) => setConfig({ ...config, deepDiveTitle: e.target.value })}
+                        className="bg-background"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enter the full title. Aegis will research this and create a deep-dive analysis episode.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Content Length: {config.contentLength} minutes</Label>
