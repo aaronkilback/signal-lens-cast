@@ -519,16 +519,16 @@ DEEP DIVE INSTRUCTIONS:
 - Make it personal: "What struck me about this was..."`;
           }
         } else if (config.topic) {
-          // Standard topic research
-          console.log("Researching real stories for topic:", config.topic);
+          // Standard topic research - find REAL people and REAL cases
+          console.log("Researching real people and cases for topic:", config.topic);
           
           const searchQueries = [
-            `real cases ${config.topic} executives security breach incident`,
-            `${config.topic} high net worth family security threat news`,
-            `corporate ${config.topic} security incident case study recent`,
+            `famous real people ${config.topic} security protection executives CEOs billionaires case study`,
+            `${config.topic} real incident news story names dates verified 2020 2021 2022 2023 2024`,
+            `notable figures ${config.topic} what happened to real story interview`,
           ];
           
-          for (const query of searchQueries.slice(0, 2)) { // Limit to 2 searches
+          for (const query of searchQueries.slice(0, 2)) {
             const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
               method: "POST",
               headers: {
@@ -540,14 +540,30 @@ DEEP DIVE INSTRUCTIONS:
                 messages: [
                   { 
                     role: "system", 
-                    content: "You are a research assistant. Provide brief, factual summaries of real incidents, cases, or news stories. Include names, dates, and locations when available. Focus on executive security, family safety, corporate threats, cyber incidents, and privacy breaches. Be concise - 2-3 paragraphs max per story." 
+                    content: `You are a research assistant finding REAL PEOPLE and REAL STORIES. 
+                    
+Your job is to find:
+1. REAL executives, CEOs, founders, public figures, or notable individuals connected to this topic
+2. REAL incidents with verified names, dates, companies, and outcomes
+3. REAL interviews, quotes, or documented experiences from real people
+
+CRITICAL: Only include verifiable real people and real events. Include:
+- Full names of real people
+- Their actual roles/companies
+- Specific dates and locations
+- Direct quotes if available
+- What actually happened (verified facts only)
+
+Do NOT include fictional or composite examples. Only real, documented cases.` 
                   },
                   { 
                     role: "user", 
-                    content: `Find 2-3 real, verified stories or incidents related to: ${query}. Include specific details like names (if public), dates, companies, and outcomes. Only include stories you can verify are real.` 
+                    content: `Find 3-4 REAL people or REAL documented cases related to: ${query}. 
+
+Include specific names, companies, dates, and what actually happened. Only include people and events that are publicly documented and verifiable.` 
                   }
                 ],
-                max_tokens: 800,
+                max_tokens: 1000,
               }),
             });
             
@@ -566,15 +582,18 @@ DEEP DIVE INSTRUCTIONS:
           }
           
           if (researchResults.length > 0) {
-            researchContext = `\n\nRESEARCHED REAL STORIES AND INCIDENTS (Use these as basis for your narrative):
+            researchContext = `\n\nRESEARCHED REAL PEOPLE AND REAL CASES (USE THESE - DO NOT INVENT CHARACTERS):
 ${researchResults.join("\n\n")}
 
-IMPORTANT: Use these real stories as inspiration. You can:
-- Reference real public incidents by name/date if verified
-- Use the patterns and lessons from these stories
-- Create composite narratives that combine elements from multiple real cases
-- Always frame clearly: "There was a case in 2023 where..." or "You may have heard about..."
-- NEVER invent details that aren't in the research`;
+CRITICAL INSTRUCTIONS FOR USING REAL PEOPLE:
+- USE THE REAL NAMES AND REAL STORIES from this research
+- Reference real public figures, executives, and documented incidents BY NAME
+- Quote real people when quotes are provided
+- Frame accurately: "Jeff Bezos once said...", "What happened to [real person] in 2022 was..."
+- You can connect their real experiences to your podcast themes
+- DO NOT invent fictional characters - use the real people from this research
+- If you need to discuss patterns, reference the real cases as examples
+- Be accurate about facts - do not embellish or invent details about real people`;
           }
         }
       } catch (researchError) {
@@ -821,6 +840,19 @@ You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation
     const randomTone = toneVariations[Math.floor(Math.random() * toneVariations.length)];
     const randomSeed = Math.floor(Math.random() * 10000);
     
+    // Determine episode format - not every episode needs character stories
+    const episodeFormats = [
+      { type: 'concept', description: 'Focus on IDEAS and FRAMEWORKS. No character stories. Discuss principles, strategies, and mental models directly. Analyze patterns without inventing scenarios.' },
+      { type: 'real_people', description: 'Focus on REAL PEOPLE from the research. Reference actual executives, public figures, and documented cases by name. Tell their real stories.' },
+      { type: 'real_people', description: 'Focus on REAL CASES from current events. Discuss what actually happened to real companies and real individuals.' },
+      { type: 'concept', description: 'Focus on ANALYSIS and INSIGHT. Break down a concept deeply. Use rhetorical questions and direct teaching without narrative.' },
+      { type: 'real_people', description: 'Interview-style exploration. Reference what real thought leaders have said about this topic. Quote them directly.' },
+      { type: 'hybrid', description: 'Mix of concepts AND one real person reference. Lead with ideas, support with one real-world example from the research.' },
+    ];
+    
+    const selectedFormat = episodeFormats[Math.floor(Math.random() * episodeFormats.length)];
+    console.log(`Episode format selected: ${selectedFormat.type}`);
+    
     // Generate unique character details for this episode
     const nameOrigins = ['Yoruba', 'Lithuanian', 'Basque', 'Filipino', 'Georgian', 'Maori', 'Icelandic', 'Bengali', 'Armenian', 'Swahili', 'Finnish', 'Welsh', 'Mongolian', 'Kurdish', 'Navajo'];
     const professions = ['vineyard owner', 'quantum physicist', 'maritime attorney', 'documentary filmmaker', 'rare book dealer', 'aerospace engineer', 'orchid cultivator', 'forensic accountant', 'underwater welder', 'opera house director', 'wildlife veterinarian', 'antiquities restorer'];
@@ -838,16 +870,42 @@ OPENING STYLE: ${randomOpening}
 NARRATIVE ARC: ${randomArc}
 TONAL FLAVOR: ${randomTone}
 
-CHARACTER SEED FOR THIS EPISODE:
-- Use a name from ${selectedOrigin} culture
-- Main character profession: ${selectedProfession}
-- Primary location: ${selectedLocation}
+=== EPISODE FORMAT: ${selectedFormat.type.toUpperCase()} ===
+${selectedFormat.description}
 
-These are MANDATORY REQUIREMENTS. Non-compliance will result in rejection.
+${selectedFormat.type === 'concept' ? `
+CONCEPT-FOCUSED EPISODE RULES:
+- DO NOT create fictional characters or invented scenarios
+- DO NOT use phrases like "let me tell you about someone I know" or "there was this executive"
+- INSTEAD: Discuss ideas directly. Analyze frameworks. Teach principles.
+- Use "you" to speak directly to the listener about their situation
+- Reference real public figures BY NAME if needed, but don't invent stories about them
+- Ask thought-provoking questions instead of telling stories
+- Structure: Concept → Why it matters → How to apply it → What changes
+` : ''}
+
+${selectedFormat.type === 'real_people' ? `
+REAL PEOPLE EPISODE RULES:
+- ONLY reference real people from the research provided above
+- Use their REAL NAMES - do not change or anonymize them
+- Stick to VERIFIED FACTS about what actually happened to them
+- Frame clearly: "[Real Person's Name], the CEO of [Real Company], once..."
+- DO NOT invent fictional characters or composite characters
+- If the research doesn't provide enough real people, focus on concepts instead
+- Quote real people when quotes are available
+` : ''}
+
+${selectedFormat.type === 'hybrid' ? `
+HYBRID EPISODE RULES:
+- Lead with CONCEPTS and FRAMEWORKS (70%)
+- Support with ONE real person reference from research (30%)
+- The real person reference must use their actual name and verified facts
+- DO NOT invent fictional characters
+` : ''}
 
 === ABSOLUTELY BANNED (NEVER USE THESE) ===
-BANNED NAMES: David, Michael, Sarah, John, James, Richard, Marcus, Elias, Chen, William, Elizabeth, Thomas, Alex, Jennifer, Robert, Daniel, Maria, Lisa, Christopher, Andrew, Matthew, Jessica, Anthony, Emily, Joshua, Lauren, Ryan, Sophia, Brandon, Rachel, Kevin, Angela, Steven, Michelle, Brian, Nicole, Jacob, Katherine, Jonathan, Stephanie, Nicholas, Rebecca, Tyler, Amanda, Eric, Samantha, Benjamin, Ashley, Christian, Heather, Dylan, Megan
-BANNED OPENINGS: "So I've been thinking...", "Let me tell you about...", "You know what's been on my mind...", "Here's something that...", "I want to share...", "There's this story...", "Picture this...", "Imagine if..."
+BANNED: FICTIONAL CHARACTERS - Do not invent people. Do not create "composite" characters. Do not anonymize real people into fake ones.
+BANNED OPENINGS: "So I've been thinking...", "Let me tell you about...", "You know what's been on my mind...", "Here's something that...", "I want to share...", "There's this story...", "Picture this...", "Imagine if...", "There was this guy/woman/person..."
 BANNED PHRASES: "here's the thing", "let me paint a picture", "fast forward to", "long story short", "at the end of the day", "when all is said and done", "peace of mind", "worst case scenario", "better safe than sorry", "the truth is", "bottom line", "game changer", "next level", "think about it", "believe it or not"
 BANNED METAPHORS: fortress, shield, armor, walls, bunker, castle, moat, locked door, safe harbor, safety net
 BANNED STRUCTURES: Don't use the same sentence structure twice in a row. Vary sentence lengths dramatically.
