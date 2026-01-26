@@ -43,33 +43,46 @@ function parseDialogueScript(text: string, hostVoice: string, guestVoice: string
   return segments.length > 0 ? segments : [{ voice: hostVoice, text: text.trim() }];
 }
 
-// Split text into TTS-friendly chunks
-function splitTextIntoChunks(text: string, maxChars: number): string[] {
+// Split text into smaller TTS-friendly chunks (reduced size for reliability)
+function splitTextIntoChunks(text: string, maxChars: number = 2000): string[] {
   if (text.length <= maxChars) {
     return [text];
   }
   
   const chunks: string[] = [];
-  const paragraphs = text.split(/\n\n+/).filter((p: string) => p.trim());
+  
+  // Split by sentences first for natural breaks
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim());
   let currentChunk = "";
   
-  for (const paragraph of paragraphs) {
-    const sentences = paragraph.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim());
-    const units = sentences.length > 0 ? sentences : [paragraph];
-    
-    for (const unit of units) {
-      const unitWithSpace = unit + " ";
-      
-      if ((currentChunk + unitWithSpace).length > maxChars) {
-        if (currentChunk.trim()) {
-          chunks.push(currentChunk.trim());
-        }
-        currentChunk = unitWithSpace;
-      } else {
-        currentChunk += unitWithSpace;
+  for (const sentence of sentences) {
+    // If a single sentence is too long, split by commas or phrases
+    if (sentence.length > maxChars) {
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+        currentChunk = "";
       }
+      
+      // Split long sentence by punctuation
+      const phrases = sentence.split(/(?<=[,;:])\s+/).filter((p: string) => p.trim());
+      for (const phrase of phrases) {
+        if ((currentChunk + " " + phrase).length > maxChars) {
+          if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+          }
+          currentChunk = phrase;
+        } else {
+          currentChunk += (currentChunk ? " " : "") + phrase;
+        }
+      }
+    } else if ((currentChunk + " " + sentence).length > maxChars) {
+      if (currentChunk.trim()) {
+        chunks.push(currentChunk.trim());
+      }
+      currentChunk = sentence;
+    } else {
+      currentChunk += (currentChunk ? " " : "") + sentence;
     }
-    currentChunk += " ";
   }
   
   if (currentChunk.trim()) {
@@ -79,29 +92,62 @@ function splitTextIntoChunks(text: string, maxChars: number): string[] {
   return chunks;
 }
 
-// Generate audio for a single text chunk
-async function generateAudioChunk(text: string, voice: string, apiKey: string): Promise<ArrayBuffer> {
-  const response = await fetch("https://api.openai.com/v1/audio/speech", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "tts-1-hd",
-      voice: voice,
-      input: text,
-      response_format: "mp3",
-    }),
-  });
+// Generate audio for a single text chunk with retry logic
+async function generateAudioChunk(
+  text: string, 
+  voice: string, 
+  apiKey: string,
+  retries: number = 2
+): Promise<ArrayBuffer> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout per chunk
+      
+      const response = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "tts-1-hd",
+          voice: voice,
+          input: text,
+          response_format: "mp3",
+        }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("OpenAI TTS error:", response.status, errorText);
-    throw new Error(`OpenAI TTS failed: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`OpenAI TTS error (attempt ${attempt + 1}):`, response.status, errorText);
+        
+        if (response.status === 429) {
+          // Rate limited - wait and retry
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        
+        throw new Error(`OpenAI TTS failed: ${response.status}`);
+      }
+
+      return await response.arrayBuffer();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.error(`TTS attempt ${attempt + 1} failed:`, lastError.message);
+      
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
   }
-
-  return await response.arrayBuffer();
+  
+  throw lastError || new Error("Failed to generate audio after retries");
 }
 
 serve(async (req) => {
@@ -121,70 +167,41 @@ serve(async (req) => {
       throw new Error("No text provided for audio generation");
     }
 
-    const MAX_CHARS = 4000;
-    const audioChunks: ArrayBuffer[] = [];
+    console.log(`Starting audio generation: ${text.length} chars`);
     
-    // Check if this is a dialogue script (has guest info)
+    const audioChunks: ArrayBuffer[] = [];
     const isDialogue = guestVoice && guestName;
+    
+    // Use smaller chunk size for reliability
+    const MAX_CHARS = 2000;
     
     if (isDialogue) {
       console.log(`Processing dialogue script with guest: ${guestName}`);
       
-      // Parse script into voice segments
       const segments = parseDialogueScript(text, voice, guestVoice, guestName);
       console.log(`Found ${segments.length} voice segments`);
       
-      for (const segment of segments) {
-        // Split each segment into TTS-friendly chunks
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
         const chunks = splitTextIntoChunks(segment.text, MAX_CHARS);
         
-        for (const chunk of chunks) {
-          console.log(`Processing ${segment.voice} chunk: ${chunk.length} chars`);
+        for (let j = 0; j < chunks.length; j++) {
+          const chunk = chunks[j];
+          console.log(`Segment ${i + 1}/${segments.length}, chunk ${j + 1}/${chunks.length}: ${chunk.length} chars (${segment.voice})`);
           const audioBuffer = await generateAudioChunk(chunk, segment.voice, OPENAI_API_KEY);
           audioChunks.push(audioBuffer);
         }
       }
     } else {
-      // Solo episode - single voice
       console.log("Processing solo episode");
       
-      if (text.length <= MAX_CHARS) {
-        const audioBuffer = await generateAudioChunk(text, voice, OPENAI_API_KEY);
-        return new Response(audioBuffer, {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "audio/mpeg",
-          },
-        });
-      }
+      const chunks = splitTextIntoChunks(text, MAX_CHARS);
+      console.log(`Split into ${chunks.length} chunks`);
       
-      // Split and process long solo content
-      const paragraphs = text.split(/\n\n+/).filter((p: string) => p.trim());
-      let currentChunk = "";
-      
-      for (const paragraph of paragraphs) {
-        const sentences = paragraph.split(/(?<=[.!?])\s+/).filter((s: string) => s.trim());
-        const units = sentences.length > 0 ? sentences : [paragraph];
-        
-        for (const unit of units) {
-          const unitWithSpace = unit + " ";
-          
-          if ((currentChunk + unitWithSpace).length > MAX_CHARS) {
-            if (currentChunk.trim()) {
-              console.log(`Processing chunk: ${currentChunk.length} chars`);
-              const audioBuffer = await generateAudioChunk(currentChunk.trim(), voice, OPENAI_API_KEY);
-              audioChunks.push(audioBuffer);
-            }
-            currentChunk = unitWithSpace;
-          } else {
-            currentChunk += unitWithSpace;
-          }
-        }
-        currentChunk += " ";
-      }
-
-      if (currentChunk.trim()) {
-        const audioBuffer = await generateAudioChunk(currentChunk.trim(), voice, OPENAI_API_KEY);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunk.length} chars`);
+        const audioBuffer = await generateAudioChunk(chunk, voice, OPENAI_API_KEY);
         audioChunks.push(audioBuffer);
       }
     }
@@ -198,7 +215,7 @@ serve(async (req) => {
       offset += chunk.byteLength;
     }
 
-    console.log(`Generated ${audioChunks.length} audio chunks, total size: ${totalLength} bytes`);
+    console.log(`✅ Generated ${audioChunks.length} audio chunks, total size: ${totalLength} bytes`);
 
     return new Response(combinedAudio.buffer, {
       headers: {
