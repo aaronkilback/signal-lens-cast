@@ -331,7 +331,62 @@ Bring it back to them gently:
 End with CTA verbatim.
 
 This should feel like a conversation that stays with them.`,
+
+  deep_dive: `FORMAT: Deep Dive Analysis Episode
+
+CRITICAL: Write ONLY speakable words. This is an exploration of a specific piece of media (book, movie, podcast, documentary, article) through a security/protection lens.
+
+=== OPENING (10%) ===
+Set the stage with genuine curiosity:
+- "Alright, so I've been digging into something that I think you're going to find fascinating..."
+- "You know, I picked up this [book/watched this film/listened to this podcast] and I couldn't stop thinking about it..."
+- "Let me share something that's been on my mind—and honestly, it surprised me..."
+- Hook them with why this matters: "There's a reason this one hit different for me..."
+
+=== THE DEEP DIVE (70%) ===
+This is where you break down the content and extract the gold:
+
+INTRODUCE THE WORK:
+- Give brief context: author/director, when it came out, why it's relevant
+- Don't summarize—analyze: "What most people miss about this is..."
+- Share your genuine reaction: "When I got to the part where..."
+
+EXTRACT THE LESSONS:
+- Connect it to security, protection, preparedness, mindset
+- "Here's what [author/character] understood that most people don't..."
+- Find the hidden frameworks: "There's actually a principle buried in here..."
+- Use specific quotes or scenes: "There's this moment where..."
+- Challenge conventional takes: "Most reviews focus on X, but the real insight is Y..."
+
+MAKE IT REAL:
+- Connect lessons to real-world applications
+- "This is exactly what I see with [type of client/situation]..."
+- Share a parallel story from your intelligence network if relevant
+- "A case came across my desk that reminded me of exactly this..."
+
+THE BIG TAKEAWAY:
+- Distill the core wisdom: "If there's one thing to take from this..."
+- Make it actionable: "Here's how you can apply this..."
+- Be honest about limitations: "Now, [author] doesn't get everything right..."
+
+=== CLOSING (20%) ===
+Bring it home personally:
+- "So why am I spending time on a [book/movie/podcast] today?"
+- "Because this stuff matters. The ideas we consume shape how we think."
+- Recommend it (or not): "If you haven't [read/watched/listened], here's what I'd say..."
+- Plant seeds for future episodes: "Next time, I want to dig into..."
+
+End with CTA VERBATIM.
+
+KEY PRINCIPLES FOR DEEP DIVES:
+- Be a CURIOUS GUIDE, not a critic or reviewer
+- CONNECT everything back to security, protection, preparedness, or mindset
+- SHARE your genuine reactions—what surprised you, what challenged you
+- EXTRACT actionable wisdom, not just interesting facts
+- RESPECT the source material while adding your unique lens
+- NEVER just summarize—always analyze and contextualize`,
 };
+
 
 
 serve(async (req) => {
@@ -391,58 +446,127 @@ Keep it natural. Let the conversation breathe. Don't script it too tightly.`;
     // Research real stories using Perplexity
     let researchContext = "";
     
-    if (PERPLEXITY_API_KEY && config.topic) {
-      console.log("Researching real stories for topic:", config.topic);
-      
+    if (PERPLEXITY_API_KEY) {
       try {
-        // Search for real incidents and stories related to the topic
-        const searchQueries = [
-          `real cases ${config.topic} executives security breach incident`,
-          `${config.topic} high net worth family security threat news`,
-          `corporate ${config.topic} security incident case study recent`,
-        ];
-        
         const researchResults: string[] = [];
         
-        for (const query of searchQueries.slice(0, 2)) { // Limit to 2 searches
-          const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "sonar",
-              messages: [
-                { 
-                  role: "system", 
-                  content: "You are a research assistant. Provide brief, factual summaries of real incidents, cases, or news stories. Include names, dates, and locations when available. Focus on executive security, family safety, corporate threats, cyber incidents, and privacy breaches. Be concise - 2-3 paragraphs max per story." 
-                },
-                { 
-                  role: "user", 
-                  content: `Find 2-3 real, verified stories or incidents related to: ${query}. Include specific details like names (if public), dates, companies, and outcomes. Only include stories you can verify are real.` 
-                }
-              ],
-              max_tokens: 800,
-            }),
-          });
+        // Special deep dive research for books, movies, podcasts, etc.
+        if (config.outputMode === "deep_dive" && config.deepDiveTitle) {
+          const mediaType = config.deepDiveMediaType || "content";
+          console.log(`Deep dive research for ${mediaType}: ${config.deepDiveTitle}`);
           
-          if (perplexityResponse.ok) {
-            const data = await perplexityResponse.json();
-            const content = data.choices?.[0]?.message?.content;
-            const citations = data.citations || [];
+          // Research the media itself
+          const mediaQueries = [
+            `"${config.deepDiveTitle}" ${mediaType} summary key themes main ideas author background`,
+            `"${config.deepDiveTitle}" ${mediaType} lessons insights analysis review`,
+            `"${config.deepDiveTitle}" ${mediaType} security leadership resilience mindset themes`,
+          ];
+          
+          for (const query of mediaQueries) {
+            const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "sonar",
+                messages: [
+                  { 
+                    role: "system", 
+                    content: `You are a research assistant analyzing ${mediaType}s. Provide detailed, accurate information about the ${mediaType}, including:
+- Author/creator background and credentials
+- Core themes, arguments, and key ideas
+- Notable quotes or memorable scenes/moments
+- Critical reception and impact
+- Lessons relevant to security, protection, leadership, and personal/family safety
+Be thorough and factual. Include specific examples, chapter/scene references when possible.` 
+                  },
+                  { 
+                    role: "user", 
+                    content: `Research "${config.deepDiveTitle}". Provide comprehensive information about this ${mediaType}, focusing on its key themes, lessons, and insights that would be relevant to executives, high-net-worth individuals, and those interested in security/protection.` 
+                  }
+                ],
+                max_tokens: 1500,
+              }),
+            });
             
-            if (content) {
-              researchResults.push(content);
-              if (citations.length > 0) {
-                researchResults.push(`Sources: ${citations.slice(0, 3).join(", ")}`);
+            if (perplexityResponse.ok) {
+              const data = await perplexityResponse.json();
+              const content = data.choices?.[0]?.message?.content;
+              const citations = data.citations || [];
+              
+              if (content) {
+                researchResults.push(content);
+                if (citations.length > 0) {
+                  researchResults.push(`Sources: ${citations.slice(0, 5).join(", ")}`);
+                }
               }
             }
           }
-        }
-        
-        if (researchResults.length > 0) {
-          researchContext = `\n\nRESEARCHED REAL STORIES AND INCIDENTS (Use these as basis for your narrative):
+          
+          if (researchResults.length > 0) {
+            researchContext = `\n\nDEEP DIVE RESEARCH ON "${config.deepDiveTitle}" (${mediaType.toUpperCase()}):
+${researchResults.join("\n\n")}
+
+DEEP DIVE INSTRUCTIONS:
+- Use this research as the foundation for your analysis
+- Reference specific quotes, scenes, or chapters when available
+- Connect the insights to security, protection, and preparedness themes
+- Share your genuine reactions and what surprised you
+- Don't just summarize—extract actionable wisdom
+- Be honest about both strengths and limitations of the work
+- Make it personal: "What struck me about this was..."`;
+          }
+        } else if (config.topic) {
+          // Standard topic research
+          console.log("Researching real stories for topic:", config.topic);
+          
+          const searchQueries = [
+            `real cases ${config.topic} executives security breach incident`,
+            `${config.topic} high net worth family security threat news`,
+            `corporate ${config.topic} security incident case study recent`,
+          ];
+          
+          for (const query of searchQueries.slice(0, 2)) { // Limit to 2 searches
+            const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "sonar",
+                messages: [
+                  { 
+                    role: "system", 
+                    content: "You are a research assistant. Provide brief, factual summaries of real incidents, cases, or news stories. Include names, dates, and locations when available. Focus on executive security, family safety, corporate threats, cyber incidents, and privacy breaches. Be concise - 2-3 paragraphs max per story." 
+                  },
+                  { 
+                    role: "user", 
+                    content: `Find 2-3 real, verified stories or incidents related to: ${query}. Include specific details like names (if public), dates, companies, and outcomes. Only include stories you can verify are real.` 
+                  }
+                ],
+                max_tokens: 800,
+              }),
+            });
+            
+            if (perplexityResponse.ok) {
+              const data = await perplexityResponse.json();
+              const content = data.choices?.[0]?.message?.content;
+              const citations = data.citations || [];
+              
+              if (content) {
+                researchResults.push(content);
+                if (citations.length > 0) {
+                  researchResults.push(`Sources: ${citations.slice(0, 3).join(", ")}`);
+                }
+              }
+            }
+          }
+          
+          if (researchResults.length > 0) {
+            researchContext = `\n\nRESEARCHED REAL STORIES AND INCIDENTS (Use these as basis for your narrative):
 ${researchResults.join("\n\n")}
 
 IMPORTANT: Use these real stories as inspiration. You can:
@@ -451,6 +575,7 @@ IMPORTANT: Use these real stories as inspiration. You can:
 - Create composite narratives that combine elements from multiple real cases
 - Always frame clearly: "There was a case in 2023 where..." or "You may have heard about..."
 - NEVER invent details that aren't in the research`;
+          }
         }
       } catch (researchError) {
         console.error("Research error (continuing without research):", researchError);

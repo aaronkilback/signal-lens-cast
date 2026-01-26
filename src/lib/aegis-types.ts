@@ -20,7 +20,10 @@ export type OutputMode =
   | 'podcast_script' 
   | 'executive_briefing' 
   | 'field_intelligence' 
-  | 'narrative_story';
+  | 'narrative_story'
+  | 'deep_dive';
+
+export type DeepDiveMediaType = 'book' | 'movie' | 'podcast' | 'documentary' | 'article';
 
 export type VoiceOption = 'onyx' | 'echo' | 'alloy' | 'fable' | 'nova' | 'shimmer';
 
@@ -43,6 +46,9 @@ export interface GenerationConfig {
   toneIntensity: ToneIntensity;
   outputMode: OutputMode;
   voice?: VoiceOption;
+  // Deep Dive specific fields
+  deepDiveMediaType?: DeepDiveMediaType;
+  deepDiveTitle?: string;
 }
 
 export const AUDIENCE_OPTIONS: { value: TargetAudience; label: string }[] = [
@@ -68,6 +74,15 @@ export const OUTPUT_MODE_OPTIONS: { value: OutputMode; label: string; descriptio
   { value: 'executive_briefing', label: 'Executive Briefing', description: 'High-impact briefing for decision-makers' },
   { value: 'field_intelligence', label: 'Field Intelligence', description: 'Tactical field report for operators' },
   { value: 'narrative_story', label: 'Long-Form Narrative', description: 'Deep storytelling for premium content' },
+  { value: 'deep_dive', label: 'Deep Dive Analysis', description: 'Analyze a book, movie, podcast, or documentary' },
+];
+
+export const DEEP_DIVE_MEDIA_OPTIONS: { value: DeepDiveMediaType; label: string; placeholder: string }[] = [
+  { value: 'book', label: '📚 Book', placeholder: 'e.g., "Extreme Ownership" by Jocko Willink' },
+  { value: 'movie', label: '🎬 Movie', placeholder: 'e.g., "Sicario" (2015)' },
+  { value: 'podcast', label: '🎙️ Podcast', placeholder: 'e.g., "The Tim Ferriss Show - Episode with Ray Dalio"' },
+  { value: 'documentary', label: '📽️ Documentary', placeholder: 'e.g., "The Social Dilemma"' },
+  { value: 'article', label: '📰 Article', placeholder: 'e.g., "WSJ piece on corporate espionage"' },
 ];
 
 export const VOICE_OPTIONS: { value: VoiceOption; label: string; description: string }[] = [
