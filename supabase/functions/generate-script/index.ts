@@ -523,7 +523,16 @@ CONTINUITY INSTRUCTIONS:
 - Bring back a character or story from a previous episode if relevant
 - Build on frameworks you've established before
 - Make callbacks feel organic: "You might remember..." or "This connects to what we discussed..."
-- If this is the first episode, establish recurring elements for future episodes`;
+- If this is the first episode, establish recurring elements for future episodes
+
+CRITICAL - AVOID REPETITION:
+- DO NOT reuse the same character names from previous episodes unless making an explicit callback
+- DO NOT retell the same stories or scenarios that appear in previous episodes
+- GENERATE NEW, UNIQUE character names for each episode (use diverse names: different cultures, genders, backgrounds)
+- CREATE FRESH scenarios and examples—never copy paragraph structures from prior episodes
+- If you've used "David" or "Elias" or similar names before, pick completely different names
+- Each episode should introduce NEW stories, NEW characters, and NEW specific examples
+- Review the episode history above and consciously avoid repeating any names, stories, or paragraph patterns listed there`;
           }
         }
 
