@@ -770,6 +770,67 @@ QUALITY REQUIREMENTS (CRITICAL - READ CAREFULLY):
 
 You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation.` : ""} Paint the destination. Transfer certainty. End with the CTA verbatim.`;
 
+    // Generate random structural variations to prevent templating
+    const openingStyles = [
+      "Start with a provocative question that challenges assumptions",
+      "Open with a vivid sensory description of a moment in time",
+      "Begin mid-action in a tense scenario",
+      "Start with a contrarian statement that surprises",
+      "Open with raw vulnerability about something that worries you",
+      "Begin with an unexpected connection between two unrelated ideas",
+      "Start by directly addressing a listener's unspoken fear",
+      "Open with a brief, punchy story that ends with a twist",
+    ];
+    
+    const narrativeArcs = [
+      "Build tension gradually, release in the final third",
+      "Start high-stakes, flashback to explain, return to resolution",
+      "Three parallel stories that weave together at the end",
+      "One central character's journey with brief supporting vignettes",
+      "Problem-solution-deeper problem-ultimate insight structure",
+      "Start with the ending, work backwards to reveal how we got there",
+      "Socratic dialogue style—questions leading to revelation",
+      "Day-in-the-life narrative with escalating stakes",
+    ];
+    
+    const toneVariations = [
+      "Extra philosophical and reflective today",
+      "More urgent and direct than usual",
+      "Quietly intense, like sharing secrets",
+      "Warmly challenging, like a tough-love mentor",
+      "Darkly humorous about serious things",
+      "Contemplative, with longer pauses for effect",
+      "Energized and almost excited about the topic",
+      "Soberly analytical but deeply caring",
+    ];
+    
+    const randomOpening = openingStyles[Math.floor(Math.random() * openingStyles.length)];
+    const randomArc = narrativeArcs[Math.floor(Math.random() * narrativeArcs.length)];
+    const randomTone = toneVariations[Math.floor(Math.random() * toneVariations.length)];
+    const randomSeed = Math.floor(Math.random() * 10000);
+    
+    const structuralVariation = `
+
+=== STRUCTURAL VARIATION FOR THIS EPISODE (Seed: ${randomSeed}) ===
+OPENING STYLE: ${randomOpening}
+NARRATIVE ARC: ${randomArc}
+TONAL FLAVOR: ${randomTone}
+
+These are REQUIREMENTS, not suggestions. Your opening MUST follow the specified style. Your story structure MUST follow the specified arc. Your tone MUST embody the specified flavor.
+
+BANNED PATTERNS (DO NOT USE):
+- Names: David, Michael, Sarah, John, James, Richard, Marcus, Elias, Chen, William, Elizabeth, Thomas
+- Openings: "So I've been thinking...", "Let me tell you about...", "You know what's been on my mind..."
+- Phrases: "here's the thing", "let me paint a picture", "fast forward to", "long story short"
+- Structures: Don't start with a question if the opening style doesn't specify it
+
+REQUIRED FRESHNESS:
+- Use names from unexpected origins: Yoruba, Lithuanian, Basque, Filipino, Georgian, Maori, Icelandic, Bengali
+- Create NEW metaphors—never compare security to "fortresses" or "shields" 
+- Invent fresh frameworks with unique names specific to this episode
+- Use specific, unusual details: exact times, odd numbers, specific brands, weather conditions
+`;
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -779,9 +840,11 @@ You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
-          { role: "system", content: AEGIS_SYSTEM_PROMPT },
+          { role: "system", content: AEGIS_SYSTEM_PROMPT + structuralVariation },
           { role: "user", content: userPrompt },
         ],
+        temperature: 0.9,
+        top_p: 0.95,
         stream: true,
       }),
     });
