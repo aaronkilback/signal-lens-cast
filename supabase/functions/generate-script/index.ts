@@ -757,16 +757,28 @@ CRITICAL REMINDER - TTS-READY OUTPUT:
 - Every word you write will be read directly by text-to-speech
 - The output must be a polished, speakable podcast script ready for audio conversion
 
-QUALITY REQUIREMENTS (CRITICAL - READ CAREFULLY):
-- Every sentence MUST be grammatically complete with a subject and verb
-- NEVER leave a sentence fragment or incomplete thought
-- NEVER cut off mid-sentence or mid-thought
-- Re-read each paragraph before moving on to ensure it flows naturally
-- If you reference something, complete the thought: don't say "The thing about security is..." and then change topics
-- Avoid run-on sentences that lose their point
-- If a sentence is getting too long, end it and start a new one
-- Double-check that transitions between ideas are clear and complete
-- Every story must have a clear beginning, middle, and end—don't abandon stories mid-way
+QUALITY REQUIREMENTS (CRITICAL - FAILURE TO FOLLOW WILL BREAK THE OUTPUT):
+- Every single sentence MUST be grammatically complete with subject, verb, and object where needed
+- NEVER leave a sentence fragment, trailing thought, or incomplete idea
+- NEVER end a paragraph mid-sentence or mid-thought
+- NEVER use ellipsis (...) to trail off—complete every thought explicitly
+- If you start a comparison ("It's like..."), you MUST complete it ("It's like X because Y")
+- If you reference something ("The thing about security..."), you MUST explain it fully
+- Every story MUST have: clear setup → conflict/tension → resolution/lesson
+- NEVER abandon a story or anecdote before its conclusion
+- NEVER introduce a person or scenario and then switch topics without closure
+- Read your output aloud mentally—if it sounds incomplete, FIX IT before moving on
+- Transitions between paragraphs must be explicit and logical
+- Maximum sentence length: 35 words. Break longer sentences into two.
+
+ANTI-REPETITION REQUIREMENTS (CRITICAL - EVERY EPISODE MUST BE UNIQUE):
+- NEVER reuse story structures, character archetypes, or metaphors from common patterns
+- NEVER use the same opening structure twice across episodes
+- Each episode needs completely fresh scenarios, characters, and examples
+- Avoid security industry clichés: "peace of mind", "worst case scenario", "better safe than sorry"
+- Create unique, memorable frameworks with names specific to THIS episode only
+- Each character needs a distinct profession, background, and specific problem
+- Vary geography: don't default to generic American settings—use specific global locations
 
 You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation.` : ""} Paint the destination. Transfer certainty. End with the CTA verbatim.`;
 
@@ -809,26 +821,52 @@ You are Aegis. ${guest ? `You're hosting ${guest.displayName} for a conversation
     const randomTone = toneVariations[Math.floor(Math.random() * toneVariations.length)];
     const randomSeed = Math.floor(Math.random() * 10000);
     
+    // Generate unique character details for this episode
+    const nameOrigins = ['Yoruba', 'Lithuanian', 'Basque', 'Filipino', 'Georgian', 'Maori', 'Icelandic', 'Bengali', 'Armenian', 'Swahili', 'Finnish', 'Welsh', 'Mongolian', 'Kurdish', 'Navajo'];
+    const professions = ['vineyard owner', 'quantum physicist', 'maritime attorney', 'documentary filmmaker', 'rare book dealer', 'aerospace engineer', 'orchid cultivator', 'forensic accountant', 'underwater welder', 'opera house director', 'wildlife veterinarian', 'antiquities restorer'];
+    const locations = ['Reykjavik', 'Montevideo', 'Tbilisi', 'Kuala Lumpur', 'Porto', 'Ljubljana', 'Windhoek', 'Queenstown', 'Cartagena', 'Tallinn', 'Muscat', 'Bergen'];
+    
+    const selectedOrigin = nameOrigins[Math.floor(Math.random() * nameOrigins.length)];
+    const selectedProfession = professions[Math.floor(Math.random() * professions.length)];
+    const selectedLocation = locations[Math.floor(Math.random() * locations.length)];
+    const episodeNumber = Math.floor(Math.random() * 900) + 100; // Random 3-digit number for uniqueness
+    
     const structuralVariation = `
 
-=== STRUCTURAL VARIATION FOR THIS EPISODE (Seed: ${randomSeed}) ===
+=== STRUCTURAL VARIATION FOR THIS EPISODE (Unique ID: EP-${randomSeed}-${episodeNumber}) ===
 OPENING STYLE: ${randomOpening}
 NARRATIVE ARC: ${randomArc}
 TONAL FLAVOR: ${randomTone}
 
-These are REQUIREMENTS, not suggestions. Your opening MUST follow the specified style. Your story structure MUST follow the specified arc. Your tone MUST embody the specified flavor.
+CHARACTER SEED FOR THIS EPISODE:
+- Use a name from ${selectedOrigin} culture
+- Main character profession: ${selectedProfession}
+- Primary location: ${selectedLocation}
 
-BANNED PATTERNS (DO NOT USE):
-- Names: David, Michael, Sarah, John, James, Richard, Marcus, Elias, Chen, William, Elizabeth, Thomas
-- Openings: "So I've been thinking...", "Let me tell you about...", "You know what's been on my mind..."
-- Phrases: "here's the thing", "let me paint a picture", "fast forward to", "long story short"
-- Structures: Don't start with a question if the opening style doesn't specify it
+These are MANDATORY REQUIREMENTS. Non-compliance will result in rejection.
 
-REQUIRED FRESHNESS:
-- Use names from unexpected origins: Yoruba, Lithuanian, Basque, Filipino, Georgian, Maori, Icelandic, Bengali
-- Create NEW metaphors—never compare security to "fortresses" or "shields" 
-- Invent fresh frameworks with unique names specific to this episode
-- Use specific, unusual details: exact times, odd numbers, specific brands, weather conditions
+=== ABSOLUTELY BANNED (NEVER USE THESE) ===
+BANNED NAMES: David, Michael, Sarah, John, James, Richard, Marcus, Elias, Chen, William, Elizabeth, Thomas, Alex, Jennifer, Robert, Daniel, Maria, Lisa, Christopher, Andrew, Matthew, Jessica, Anthony, Emily, Joshua, Lauren, Ryan, Sophia, Brandon, Rachel, Kevin, Angela, Steven, Michelle, Brian, Nicole, Jacob, Katherine, Jonathan, Stephanie, Nicholas, Rebecca, Tyler, Amanda, Eric, Samantha, Benjamin, Ashley, Christian, Heather, Dylan, Megan
+BANNED OPENINGS: "So I've been thinking...", "Let me tell you about...", "You know what's been on my mind...", "Here's something that...", "I want to share...", "There's this story...", "Picture this...", "Imagine if..."
+BANNED PHRASES: "here's the thing", "let me paint a picture", "fast forward to", "long story short", "at the end of the day", "when all is said and done", "peace of mind", "worst case scenario", "better safe than sorry", "the truth is", "bottom line", "game changer", "next level", "think about it", "believe it or not"
+BANNED METAPHORS: fortress, shield, armor, walls, bunker, castle, moat, locked door, safe harbor, safety net
+BANNED STRUCTURES: Don't use the same sentence structure twice in a row. Vary sentence lengths dramatically.
+
+=== MANDATORY FRESHNESS ===
+- Every character name must be from ${selectedOrigin} or similarly uncommon origins
+- Every metaphor must be original and unexpected—draw from nature, art, cuisine, music, architecture
+- Every framework you create must have a unique, memorable name (not generic like "The Three Pillars")
+- Use hyper-specific details: exact times (3:47 AM), odd amounts ($847,000), specific brands, exact weather (drizzling, 62°F)
+- Vary your paragraph lengths: some very short (1-2 sentences), some medium (4-5 sentences)
+- Include at least one moment of genuine humor or absurdity
+
+=== SENTENCE QUALITY CHECKLIST ===
+Before each sentence, verify:
+✓ Does this sentence have a clear subject and verb?
+✓ Does this sentence complete a thought?
+✓ If I'm making a comparison, do I complete both sides?
+✓ If I'm telling a story, does it have an ending?
+✓ Is this sentence under 35 words?
 `;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
