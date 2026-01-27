@@ -790,6 +790,42 @@ QUALITY REQUIREMENTS (CRITICAL - FAILURE TO FOLLOW WILL BREAK THE OUTPUT):
 - Transitions between paragraphs must be explicit and logical
 - Maximum sentence length: 35 words. Break longer sentences into two.
 
+=== AUDIO CLARITY REQUIREMENTS (CRITICAL FOR LISTENER UNDERSTANDING) ===
+Listeners are HEARING this, not reading it. They cannot re-read a confusing sentence. Make it crystal clear.
+
+VERBAL SIGNPOSTS (Use these to guide listeners):
+- Before introducing a new topic: "Okay, so let's talk about..." or "Now, here's where it gets interesting..." or "Shifting gears for a moment..."
+- Before a key insight: "Here's the thing..." or "And this is crucial..." or "Pay attention to this part..."
+- Before an example: "Let me give you an example..." or "Here's what that looks like in practice..." or "Picture this scenario..."
+- Before a conclusion: "So what does this all mean?" or "Let me bring this together..." or "The bottom line is this..."
+- After a complex point: "Let me say that again..." or "In other words..." or "Put simply..."
+
+TRANSITION CLARITY:
+- EVERY topic change needs an explicit verbal bridge
+- BAD: "Security matters. [new paragraph] Travel is risky." (abrupt, confusing)
+- GOOD: "Security matters. Now, let me connect this to something you do every week—travel." (clear bridge)
+- Use phrases like: "This brings me to...", "And that leads us to...", "Speaking of which...", "Here's how this connects..."
+- NEVER jump between ideas without a transition phrase
+
+PACING FOR AUDIO:
+- After making a major point, add a brief verbal pause: "Let that sink in for a second."
+- After asking a rhetorical question, leave space: "Think about that. Really think about it."
+- Before key takeaways, signal importance: "Okay, this is important, so listen closely..."
+- Use mini-recaps: "So far, we've covered X. Now let's get into Y."
+
+AVOID LISTENER CONFUSION:
+- ONE idea per paragraph. Don't cram multiple concepts together.
+- If you introduce a term or concept, define it immediately in plain language
+- If you reference something from earlier, remind them: "Remember when I mentioned X? Well..."
+- Avoid pronouns without clear antecedents—use names/nouns instead of "he", "she", "it", "they"
+- Numbers and statistics need context: "That's one in every ten." not just "ten percent"
+
+STRUCTURE FOR LISTENING:
+- Tell them what you're going to tell them (preview)
+- Tell them (content)
+- Tell them what you told them (brief recap)
+- This applies to the whole episode AND to individual sections
+
 ANTI-REPETITION REQUIREMENTS (CRITICAL - EVERY EPISODE MUST BE UNIQUE):
 - NEVER reuse story structures, character archetypes, or metaphors from common patterns
 - NEVER use the same opening structure twice across episodes
