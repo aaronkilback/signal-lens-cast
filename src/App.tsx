@@ -14,6 +14,7 @@ import LibraryPage from "./pages/Library";
 import Doctrine from "./pages/Doctrine";
 import GuestPortal from "./pages/GuestPortal";
 import GuestInvitations from "./pages/GuestInvitations";
+import Shorts from "./pages/Shorts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -74,6 +75,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <GuestInvitations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/shorts"
+              element={
+                <ProtectedRoute>
+                  <Shorts />
                 </ProtectedRoute>
               }
             />

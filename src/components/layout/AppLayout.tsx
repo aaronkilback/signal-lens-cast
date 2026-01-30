@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Mic, Radio, Library, FileText, LogOut, User, Mail } from 'lucide-react';
+import { Shield, Mic, Radio, Library, FileText, LogOut, User, Mail, Film } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +18,7 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: Shield },
   { path: '/generate', label: 'Generate', icon: Mic },
   { path: '/interview', label: 'Interview', icon: Radio },
+  { path: '/shorts', label: 'Shorts', icon: Film },
   { path: '/invitations', label: 'Guests', icon: Mail },
   { path: '/library', label: 'Library', icon: Library },
   { path: '/doctrine', label: 'Doctrine', icon: FileText },
