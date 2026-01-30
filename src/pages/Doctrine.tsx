@@ -1,29 +1,13 @@
 import { useEffect, useState } from 'react';
-import { FileText, Plus, Trash2, Upload } from 'lucide-react';
+import { FileText, Plus } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { DoctrineCard } from '@/components/doctrine/DoctrineCard';
+import { DoctrineCreateDialog } from '@/components/doctrine/DoctrineCreateDialog';
 
 interface DoctrineDocument {
   id: string;
@@ -31,6 +15,10 @@ interface DoctrineDocument {
   content: string;
   document_type: string;
   created_at: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size_bytes?: number | null;
 }
 
 export default function Doctrine() {
@@ -38,12 +26,6 @@ export default function Doctrine() {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<DoctrineDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newDoc, setNewDoc] = useState({
-    title: '',
-    content: '',
-    document_type: 'doctrine',
-  });
 
   useEffect(() => {
     fetchDocuments();
@@ -66,45 +48,14 @@ export default function Doctrine() {
     setLoading(false);
   };
 
-  const handleCreate = async () => {
-    if (!newDoc.title.trim() || !newDoc.content.trim() || !user) {
-      toast({
-        title: 'Missing Fields',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('doctrine_documents')
-      .insert({
-        user_id: user.id,
-        title: newDoc.title,
-        content: newDoc.content,
-        document_type: newDoc.document_type,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      toast({
-        title: 'Creation Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      setDocuments([data, ...documents]);
-      setNewDoc({ title: '', content: '', document_type: 'doctrine' });
-      setIsDialogOpen(false);
-      toast({
-        title: 'Document Added',
-        description: 'Doctrine document has been saved.',
-      });
-    }
+  const handleDocumentCreated = (doc: DoctrineDocument) => {
+    setDocuments([doc, ...documents]);
   };
 
   const handleDelete = async (id: string) => {
+    // Find the document to get file path for cleanup
+    const docToDelete = documents.find(d => d.id === id);
+    
     const { error } = await supabase.from('doctrine_documents').delete().eq('id', id);
 
     if (error) {
@@ -114,6 +65,11 @@ export default function Doctrine() {
         variant: 'destructive',
       });
     } else {
+      // Also delete file from storage if exists
+      if (docToDelete?.file_path) {
+        await supabase.storage.from('doctrine-files').remove([docToDelete.file_path]);
+      }
+      
       setDocuments(documents.filter(d => d.id !== id));
       toast({
         title: 'Document Deleted',
@@ -147,66 +103,12 @@ export default function Doctrine() {
             </p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Document
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Add Doctrine Document</DialogTitle>
-                <DialogDescription>
-                  Upload Silent Shield doctrine content that Aegis will reference during generation.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="e.g., Fortress Framework Principles"
-                    value={newDoc.title}
-                    onChange={(e) => setNewDoc({ ...newDoc, title: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="type">Document Type</Label>
-                  <Select
-                    value={newDoc.document_type}
-                    onValueChange={(value) => setNewDoc({ ...newDoc, document_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="doctrine">Doctrine</SelectItem>
-                      <SelectItem value="framework">Framework</SelectItem>
-                      <SelectItem value="reference">Reference</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="content">Content</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="Paste or type the doctrine content here..."
-                    value={newDoc.content}
-                    onChange={(e) => setNewDoc({ ...newDoc, content: e.target.value })}
-                    className="min-h-[300px]"
-                  />
-                </div>
-
-                <Button onClick={handleCreate} className="w-full">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Save Document
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {user && (
+            <DoctrineCreateDialog
+              userId={user.id}
+              onDocumentCreated={handleDocumentCreated}
+            />
+          )}
         </div>
 
         {loading ? (
@@ -233,39 +135,25 @@ export default function Doctrine() {
                 Add Silent Shield doctrine and Fortress Framework content for Aegis to reference 
                 when generating intelligence.
               </p>
-              <Button className="mt-6" onClick={() => setIsDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add First Document
-              </Button>
+              {user && (
+                <div className="mt-6">
+                  <DoctrineCreateDialog
+                    userId={user.id}
+                    onDocumentCreated={handleDocumentCreated}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {documents.map((doc) => (
-              <Card key={doc.id} className="aegis-card">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{doc.title}</CardTitle>
-                      <CardDescription>
-                        {getTypeLabel(doc.document_type)} • {new Date(doc.created_at).toLocaleDateString()}
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(doc.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {doc.content}
-                  </p>
-                </CardContent>
-              </Card>
+              <DoctrineCard
+                key={doc.id}
+                doc={doc}
+                onDelete={handleDelete}
+                getTypeLabel={getTypeLabel}
+              />
             ))}
           </div>
         )}
