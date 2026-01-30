@@ -19,6 +19,11 @@ export type Database = {
           content: string
           created_at: string
           document_type: string | null
+          extracted_text: string | null
+          file_name: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          file_type: string | null
           id: string
           title: string
           updated_at: string
@@ -28,6 +33,11 @@ export type Database = {
           content: string
           created_at?: string
           document_type?: string | null
+          extracted_text?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_type?: string | null
           id?: string
           title: string
           updated_at?: string
@@ -37,6 +47,11 @@ export type Database = {
           content?: string
           created_at?: string
           document_type?: string | null
+          extracted_text?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_type?: string | null
           id?: string
           title?: string
           updated_at?: string
