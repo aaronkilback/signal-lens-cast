@@ -631,9 +631,9 @@ CRITICAL INSTRUCTIONS FOR USING REAL PEOPLE:
           }
         }
 
-        // Fetch recent episodes for continuity
+        // Fetch recent episodes for continuity - include script content for pattern detection
         const episodesResponse = await fetch(
-          `${supabaseUrl}/rest/v1/episodes?user_id=eq.${userId}&status=eq.completed&order=created_at.desc&limit=10&select=episode_number,title,topic,target_audience,themes,key_stories,people_mentioned,episode_summary,created_at`,
+          `${supabaseUrl}/rest/v1/episodes?user_id=eq.${userId}&status=eq.completed&order=created_at.desc&limit=15&select=episode_number,title,topic,target_audience,themes,key_stories,people_mentioned,episode_summary,script_content,created_at`,
           {
             headers: {
               apikey: supabaseKey,
@@ -645,38 +645,88 @@ CRITICAL INSTRUCTIONS FOR USING REAL PEOPLE:
         if (episodesResponse.ok) {
           const episodes = await episodesResponse.json();
           if (episodes.length > 0) {
-            episodeHistory = `\n\nPREVIOUS EPISODES (Reference these naturally for continuity):
-${episodes.map((ep: any, idx: number) => {
+            // Extract used names from all previous scripts
+            const allScripts = episodes.map((ep: any) => ep.script_content || "").join("\n");
+            const namePattern = /(?:called him|called her|named|let's call (?:him|her)|meet |this is |there's |was |worked with )([A-Z][a-z]+)/g;
+            const usedNamesSet = new Set<string>();
+            let match;
+            while ((match = namePattern.exec(allScripts)) !== null) {
+              usedNamesSet.add(match[1]);
+            }
+            // Also catch standalone capitalized names in context
+            const commonNamesPattern = /\b(David|Marcus|Sarah|Elena|Michael|James|Sofia|Alexandra|William|Robert|Thomas|Daniel|Christopher|Matthew|Andrew|Joseph|Charles|Anthony|Mark|Steven|Edward|Brian|Kevin|Jason|Jeffrey|Ryan|Jacob|Nicholas|Eric|Stephen|Jonathan|Larry|Justin|Scott|Brandon|Raymond|Gregory|Benjamin|Samuel|Patrick|Frank|Alexander|Raymond|Jack|Dennis|Jerry|Tyler|Aaron|Jose|Adam|Henry|Nathan|Douglas|Zachary|Peter|Kyle|Noah|Ethan|Jeremy|Walter|Christian|Keith|Roger|Terry|Austin|Sean|Gerald|Carl|Dylan|Harold|Jordan|Jesse|Bryan|Lawrence|Arthur|Gabriel|Bruce|Logan|Albert|Willie|Alan|Eugene|Russell|Vincent|Philip|Bobby|Johnny|Bradley)\b/g;
+            while ((match = commonNamesPattern.exec(allScripts)) !== null) {
+              usedNamesSet.add(match[1]);
+            }
+            const usedNames = Array.from(usedNamesSet).slice(0, 50);
+
+            // Extract opening patterns (first 100 chars of each script)
+            const openingPatterns = episodes
+              .filter((ep: any) => ep.script_content)
+              .map((ep: any) => ep.script_content.substring(0, 150).replace(/\n/g, " ").trim())
+              .slice(0, 5);
+
+            // Extract used frameworks/concepts
+            const frameworkPattern = /(?:call this the |call it the |I call this |this is the |introducing the |what I term |framework I call )["']?([^"'\n.]+)["']?/gi;
+            const usedFrameworks = new Set<string>();
+            while ((match = frameworkPattern.exec(allScripts)) !== null) {
+              usedFrameworks.add(match[1].trim());
+            }
+
+            // Get all topics covered to avoid repetition
+            const coveredTopics = episodes.map((ep: any) => ep.topic).filter(Boolean);
+            const allThemes = episodes.flatMap((ep: any) => ep.themes || []);
+            const themeFrequency: Record<string, number> = {};
+            allThemes.forEach((theme: string) => {
+              themeFrequency[theme] = (themeFrequency[theme] || 0) + 1;
+            });
+            const overusedThemes = Object.entries(themeFrequency)
+              .filter(([_, count]) => count >= 3)
+              .map(([theme]) => theme);
+
+            episodeHistory = `\n\n=== EPISODE INTELLIGENCE (${episodes.length} previous episodes analyzed) ===
+
+PREVIOUS EPISODE SUMMARIES:
+${episodes.slice(0, 8).map((ep: any, idx: number) => {
   const epNum = ep.episode_number || (episodes.length - idx);
-  const stories = ep.key_stories?.length ? `Key stories: ${ep.key_stories.join(", ")}` : "";
-  const people = ep.people_mentioned?.length ? `People mentioned: ${ep.people_mentioned.join(", ")}` : "";
+  const stories = ep.key_stories?.length ? `Stories: ${ep.key_stories.join(", ")}` : "";
+  const people = ep.people_mentioned?.length ? `People: ${ep.people_mentioned.join(", ")}` : "";
   const themes = ep.themes?.length ? `Themes: ${ep.themes.join(", ")}` : "";
   const summary = ep.episode_summary ? `Summary: ${ep.episode_summary}` : "";
   
-  return `
-Episode ${epNum}: "${ep.title}"
-Topic: ${ep.topic}
-${themes}
-${stories}
-${people}
-${summary}`.trim();
+  return `EP${epNum} "${ep.title}": ${ep.topic}
+${[themes, stories, people, summary].filter(Boolean).join(" | ")}`;
 }).join("\n\n")}
 
-CONTINUITY INSTRUCTIONS:
-- Reference 1-2 past episodes naturally (don't force it)
-- Bring back a character or story from a previous episode if relevant
-- Build on frameworks you've established before
-- Make callbacks feel organic: "You might remember..." or "This connects to what we discussed..."
-- If this is the first episode, establish recurring elements for future episodes
+=== ANTI-REPETITION BLACKLIST (DO NOT USE ANY OF THESE) ===
 
-CRITICAL - AVOID REPETITION:
-- DO NOT reuse the same character names from previous episodes unless making an explicit callback
-- DO NOT retell the same stories or scenarios that appear in previous episodes
-- GENERATE NEW, UNIQUE character names for each episode (use diverse names: different cultures, genders, backgrounds)
-- CREATE FRESH scenarios and examples—never copy paragraph structures from prior episodes
-- If you've used "David" or "Elias" or similar names before, pick completely different names
-- Each episode should introduce NEW stories, NEW characters, and NEW specific examples
-- Review the episode history above and consciously avoid repeating any names, stories, or paragraph patterns listed there`;
+BANNED CHARACTER NAMES (already used in previous episodes):
+${usedNames.length > 0 ? usedNames.join(", ") : "None yet - but use diverse, unique names"}
+
+BANNED OPENING PATTERNS (avoid similar structures):
+${openingPatterns.length > 0 ? openingPatterns.map((p: string, i: number) => `${i + 1}. "${p}..."`).join("\n") : "None captured yet"}
+
+BANNED FRAMEWORKS/CONCEPTS (already introduced):
+${usedFrameworks.size > 0 ? Array.from(usedFrameworks).join(", ") : "None yet"}
+
+OVERUSED THEMES (use sparingly or from fresh angles):
+${overusedThemes.length > 0 ? overusedThemes.join(", ") : "None yet"}
+
+TOPICS ALREADY COVERED (approach differently if revisiting):
+${coveredTopics.slice(0, 10).join(", ")}
+
+=== CONTINUITY GUIDANCE ===
+- You MAY reference 1-2 past episodes with callbacks like "Remember when we discussed..." or "In episode ${episodes[0]?.episode_number || 1}, I mentioned..."
+- If bringing back a character, make it explicit: "You might remember [Name] from a few episodes back..."
+- Build on established frameworks but introduce NEW concepts each episode
+- Make callbacks feel earned, not forced—only use if genuinely relevant
+
+=== MANDATORY FRESHNESS REQUIREMENTS ===
+1. CHARACTER NAMES: Generate completely new names. Use origins like: Basque, Georgian, Yoruba, Maori, Icelandic, Bengali, Armenian, Kurdish, Navajo, Welsh, Finnish, Mongolian
+2. OPENING: Your first 3 sentences must be structurally different from all openings above
+3. FRAMEWORKS: If you introduce a named concept, it MUST be unique—check against the banned list
+4. SCENARIOS: Create entirely new situations, professions, locations that weren't in previous episodes
+5. METAPHORS: Each episode needs fresh metaphors—draw from unexpected domains: cooking, music, architecture, nature, sports, art`;
           }
         }
 
