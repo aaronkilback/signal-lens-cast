@@ -1,21 +1,31 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Image, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, Image, X, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+interface FileResult {
+  content: string;
+  extractedText?: string;
+  filePath: string;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes: number;
+}
+
 interface DoctrineFileUploaderProps {
   userId: string;
-  onFileProcessed: (result: {
-    content: string;
-    extractedText?: string;
-    filePath: string;
-    fileName: string;
-    fileType: string;
-    fileSizeBytes: number;
-  }) => void;
+  onFileProcessed: (result: FileResult) => void;
+  onBatchComplete?: () => void;
   onCancel: () => void;
+}
+
+interface FileUploadState {
+  file: File;
+  status: 'pending' | 'uploading' | 'extracting' | 'done' | 'error';
+  progress: number;
+  error?: string;
 }
 
 const ACCEPTED_TYPES = {
@@ -25,12 +35,11 @@ const ACCEPTED_TYPES = {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export function DoctrineFileUploader({ userId, onFileProcessed, onCancel }: DoctrineFileUploaderProps) {
+export function DoctrineFileUploader({ userId, onFileProcessed, onBatchComplete, onCancel }: DoctrineFileUploaderProps) {
   const { toast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'extracting'>('idle');
+  const [fileStates, setFileStates] = useState<FileUploadState[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const isDocument = (fileName: string) => {
     const ext = '.' + fileName.split('.').pop()?.toLowerCase();
@@ -44,71 +53,40 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onCancel }: Doct
 
   const extractTextFromFile = async (file: File): Promise<string> => {
     const ext = file.name.split('.').pop()?.toLowerCase();
-    
-    // For plain text files, read directly
     if (['txt', 'md'].includes(ext || '')) {
       return await file.text();
     }
-    
-    // For PDFs and other documents, we'd ideally use a parsing service
-    // For now, return empty and let user paste/edit content manually
     return '';
   };
 
-  const processFile = async (file: File) => {
-    if (file.size > MAX_FILE_SIZE) {
-      toast({
-        title: 'File Too Large',
-        description: 'Maximum file size is 50MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const updateFileState = (index: number, updates: Partial<FileUploadState>) => {
+    setFileStates(prev => prev.map((fs, i) => i === index ? { ...fs, ...updates } : fs));
+  };
 
+  const processFile = async (file: File, index: number): Promise<boolean> => {
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    const allAccepted = [...ACCEPTED_TYPES.documents, ...ACCEPTED_TYPES.images];
     
-    if (!allAccepted.includes(ext)) {
-      toast({
-        title: 'Invalid File Type',
-        description: 'Please upload a document (PDF, Word, TXT) or image (PNG, JPG).',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setUploading(true);
-    setStatus('uploading');
-    setProgress(0);
-
     try {
-      // Generate unique file path
+      updateFileState(index, { status: 'uploading', progress: 10 });
+
       const timestamp = Date.now();
       const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${userId}/${timestamp}-${safeName}`;
 
-      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('doctrine-files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
-      setProgress(50);
+      updateFileState(index, { progress: 50 });
 
-      // Extract text for documents
       let extractedText = '';
       if (isDocument(file.name)) {
-        setStatus('extracting');
+        updateFileState(index, { status: 'extracting' });
         extractedText = await extractTextFromFile(file);
-        setProgress(80);
       }
+      updateFileState(index, { progress: 80 });
 
-      setProgress(100);
-
-      // Determine initial content
       let content = '';
       if (isImage(file.name)) {
         content = `[Image: ${file.name}]`;
@@ -127,56 +105,95 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onCancel }: Doct
         fileSizeBytes: file.size,
       });
 
-      toast({
-        title: 'File Uploaded',
-        description: isDocument(file.name) 
-          ? 'Document uploaded. You can edit the extracted content below.'
-          : 'Image uploaded successfully.',
-      });
+      updateFileState(index, { status: 'done', progress: 100 });
+      return true;
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: 'Upload Failed',
-        description: error instanceof Error ? error.message : 'Could not upload file.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUploading(false);
-      setStatus('idle');
-      setProgress(0);
+      updateFileState(index, { status: 'error', error: error instanceof Error ? error.message : 'Upload failed' });
+      return false;
     }
+  };
+
+  const processAllFiles = async (files: File[]) => {
+    const validFiles = files.filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        toast({ title: 'File Too Large', description: `${file.name} exceeds 50MB limit.`, variant: 'destructive' });
+        return false;
+      }
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      const allAccepted = [...ACCEPTED_TYPES.documents, ...ACCEPTED_TYPES.images];
+      if (!allAccepted.includes(ext)) {
+        toast({ title: 'Invalid File', description: `${file.name} is not a supported format.`, variant: 'destructive' });
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    setFileStates(validFiles.map(file => ({ file, status: 'pending', progress: 0 })));
+    setIsProcessing(true);
+
+    let successCount = 0;
+    for (let i = 0; i < validFiles.length; i++) {
+      const success = await processFile(validFiles[i], i);
+      if (success) successCount++;
+    }
+
+    setIsProcessing(false);
+    toast({
+      title: 'Upload Complete',
+      description: `${successCount} of ${validFiles.length} files uploaded successfully.`,
+    });
+    
+    if (onBatchComplete) onBatchComplete();
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    const file = e.dataTransfer.files[0];
-    if (file) processFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) processAllFiles(files);
   }, [userId]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) processAllFiles(files);
   };
+
+  const totalProgress = fileStates.length > 0 
+    ? Math.round(fileStates.reduce((sum, fs) => sum + fs.progress, 0) / fileStates.length)
+    : 0;
 
   return (
     <div className="space-y-4">
       <div
         className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
-        } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+        } ${isProcessing ? 'pointer-events-none opacity-60' : ''}`}
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
       >
-        {uploading ? (
-          <div className="space-y-4">
-            <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
-              {status === 'uploading' ? 'Uploading file...' : 'Extracting text...'}
+        {fileStates.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-sm font-medium mb-2">
+              {isProcessing ? 'Uploading files...' : 'Upload complete'}
             </p>
-            <Progress value={progress} className="max-w-xs mx-auto" />
+            {fileStates.map((fs, i) => (
+              <div key={i} className="flex items-center gap-3 text-left text-sm">
+                {fs.status === 'done' ? (
+                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                ) : fs.status === 'error' ? (
+                  <X className="h-4 w-4 text-destructive flex-shrink-0" />
+                ) : (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                )}
+                <span className="truncate flex-1">{fs.file.name}</span>
+                <span className="text-xs text-muted-foreground w-12 text-right">{fs.progress}%</span>
+              </div>
+            ))}
+            <Progress value={totalProgress} className="mt-2" />
           </div>
         ) : (
           <>
@@ -188,12 +205,13 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onCancel }: Doct
                 <Image className="h-6 w-6 text-primary" />
               </div>
             </div>
-            <p className="text-sm font-medium mb-1">Drop a file here or click to browse</p>
+            <p className="text-sm font-medium mb-1">Drop files here or click to browse</p>
             <p className="text-xs text-muted-foreground">
-              Documents: PDF, Word, TXT, Markdown • Images: PNG, JPG, GIF
+              Select multiple files • PDF, Word, TXT, Markdown, PNG, JPG, GIF
             </p>
             <input
               type="file"
+              multiple
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               accept={[...ACCEPTED_TYPES.documents, ...ACCEPTED_TYPES.images].join(',')}
               onChange={handleFileSelect}
@@ -203,9 +221,9 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onCancel }: Doct
       </div>
 
       <div className="flex justify-end">
-        <Button variant="ghost" onClick={onCancel} disabled={uploading}>
+        <Button variant="ghost" onClick={onCancel} disabled={isProcessing}>
           <X className="h-4 w-4 mr-2" />
-          Cancel
+          {fileStates.length > 0 && !isProcessing ? 'Done' : 'Cancel'}
         </Button>
       </div>
     </div>

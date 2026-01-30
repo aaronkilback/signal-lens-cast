@@ -38,12 +38,14 @@ interface NewDocData {
 interface DoctrineCreateDialogProps {
   userId: string;
   onDocumentCreated: (doc: any) => void;
+  onDocumentsCreated?: (docs: any[]) => void;
 }
 
-export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCreateDialogProps) {
+export function DoctrineCreateDialog({ userId, onDocumentCreated, onDocumentsCreated }: DoctrineCreateDialogProps) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'text' | 'upload'>('text');
+  const [uploadedFiles, setUploadedFiles] = useState<NewDocData[]>([]);
   const [newDoc, setNewDoc] = useState<NewDocData>({
     title: '',
     content: '',
@@ -56,6 +58,7 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
       content: '',
       document_type: 'doctrine',
     });
+    setUploadedFiles([]);
     setActiveTab('text');
   };
 
@@ -102,7 +105,7 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
     }
   };
 
-  const handleFileProcessed = (result: {
+  const handleFileProcessed = async (result: {
     content: string;
     extractedText?: string;
     filePath: string;
@@ -112,23 +115,35 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
   }) => {
     // Auto-generate title from filename
     const titleFromFile = result.fileName
-      .replace(/\.[^/.]+$/, '') // Remove extension
-      .replace(/[-_]/g, ' ') // Replace dashes/underscores
-      .replace(/\b\w/g, c => c.toUpperCase()); // Title case
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
 
-    setNewDoc(prev => ({
-      ...prev,
-      title: prev.title || titleFromFile,
-      content: result.content,
-      extracted_text: result.extractedText,
-      file_path: result.filePath,
-      file_name: result.fileName,
-      file_type: result.fileType,
-      file_size_bytes: result.fileSizeBytes,
-    }));
+    // Create document immediately for batch uploads
+    const { data, error } = await supabase
+      .from('doctrine_documents')
+      .insert({
+        user_id: userId,
+        title: titleFromFile,
+        content: result.content,
+        document_type: 'reference', // Default for batch uploads
+        file_path: result.filePath,
+        file_name: result.fileName,
+        file_type: result.fileType,
+        file_size_bytes: result.fileSizeBytes,
+        extracted_text: result.extractedText || null,
+      })
+      .select()
+      .single();
 
-    // Switch to text tab to allow editing
-    setActiveTab('text');
+    if (!error && data) {
+      onDocumentCreated(data);
+    }
+  };
+
+  const handleBatchComplete = () => {
+    resetForm();
+    setIsOpen(false);
   };
 
   return (
@@ -143,7 +158,7 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
         <DialogHeader>
           <DialogTitle>Add Doctrine Document</DialogTitle>
           <DialogDescription>
-            Upload a file or paste content that Aegis will reference during generation.
+            Upload files or paste content that Aegis will reference during generation.
           </DialogDescription>
         </DialogHeader>
 
@@ -155,7 +170,7 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
             </TabsTrigger>
             <TabsTrigger value="upload" className="gap-2">
               <Upload className="h-4 w-4" />
-              Upload File
+              Upload Files
             </TabsTrigger>
           </TabsList>
 
@@ -163,6 +178,7 @@ export function DoctrineCreateDialog({ userId, onDocumentCreated }: DoctrineCrea
             <DoctrineFileUploader
               userId={userId}
               onFileProcessed={handleFileProcessed}
+              onBatchComplete={handleBatchComplete}
               onCancel={() => setActiveTab('text')}
             />
           </TabsContent>
