@@ -439,6 +439,131 @@ export type Database = {
           },
         ]
       }
+      video_clips: {
+        Row: {
+          ai_score: number | null
+          ai_suggested: boolean | null
+          aspect_ratio: string
+          caption_style: Json | null
+          captions: Json | null
+          created_at: string
+          duration_seconds: number | null
+          end_time: number
+          export_status: string | null
+          exported_path: string | null
+          headline_text: string | null
+          id: string
+          platform: string | null
+          source_video_id: string
+          start_time: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_score?: number | null
+          ai_suggested?: boolean | null
+          aspect_ratio?: string
+          caption_style?: Json | null
+          captions?: Json | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_time: number
+          export_status?: string | null
+          exported_path?: string | null
+          headline_text?: string | null
+          id?: string
+          platform?: string | null
+          source_video_id: string
+          start_time: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_score?: number | null
+          ai_suggested?: boolean | null
+          aspect_ratio?: string
+          caption_style?: Json | null
+          captions?: Json | null
+          created_at?: string
+          duration_seconds?: number | null
+          end_time?: number
+          export_status?: string | null
+          exported_path?: string | null
+          headline_text?: string | null
+          id?: string
+          platform?: string | null
+          source_video_id?: string
+          start_time?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_clips_source_video_id_fkey"
+            columns: ["source_video_id"]
+            isOneToOne: false
+            referencedRelation: "video_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_uploads: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_seconds: number | null
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          original_filename: string
+          status: string
+          storage_path: string
+          thumbnail_path: string | null
+          title: string
+          transcription: string | null
+          transcription_segments: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          original_filename: string
+          status?: string
+          storage_path: string
+          thumbnail_path?: string | null
+          title: string
+          transcription?: string | null
+          transcription_segments?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          original_filename?: string
+          status?: string
+          storage_path?: string
+          thumbnail_path?: string | null
+          title?: string
+          transcription?: string | null
+          transcription_segments?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

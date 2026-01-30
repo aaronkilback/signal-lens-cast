@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.generate-audio]
 verify_jwt = false
+
+[functions.generate-marketing-assets]
+verify_jwt = false
+
+[functions.transcribe-video]
+verify_jwt = false
+
+[functions.suggest-clips]
+verify_jwt = false
+
+[functions.generate-captions]
+verify_jwt = false
