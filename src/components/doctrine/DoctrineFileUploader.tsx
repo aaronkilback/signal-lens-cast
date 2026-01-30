@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, FileText, Image, X, Loader2, CheckCircle } from 'lucide-react';
+import { Upload, FileText, Image, X, Loader2, CheckCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +23,7 @@ interface DoctrineFileUploaderProps {
 
 interface FileUploadState {
   file: File;
-  status: 'pending' | 'uploading' | 'extracting' | 'done' | 'error';
+  status: 'pending' | 'uploading' | 'analyzing' | 'done' | 'error';
   progress: number;
   error?: string;
 }
@@ -59,6 +59,22 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onBatchComplete,
     return '';
   };
 
+  const analyzeImageWithAI = async (filePath: string, fileName: string): Promise<string> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-doctrine-image', {
+        body: { filePath, fileName },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Analysis failed');
+
+      return data.content;
+    } catch (error) {
+      console.error('Image analysis error:', error);
+      throw error;
+    }
+  };
+
   const updateFileState = (index: number, updates: Partial<FileUploadState>) => {
     setFileStates(prev => prev.map((fs, i) => i === index ? { ...fs, ...updates } : fs));
   };
@@ -78,23 +94,28 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onBatchComplete,
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
       if (uploadError) throw uploadError;
-      updateFileState(index, { progress: 50 });
-
-      let extractedText = '';
-      if (isDocument(file.name)) {
-        updateFileState(index, { status: 'extracting' });
-        extractedText = await extractTextFromFile(file);
-      }
-      updateFileState(index, { progress: 80 });
+      updateFileState(index, { progress: 40 });
 
       let content = '';
+      let extractedText = '';
+
       if (isImage(file.name)) {
-        content = `[Image: ${file.name}]`;
-      } else if (extractedText) {
-        content = extractedText;
-      } else {
-        content = `[Document: ${file.name}] - Content pending extraction`;
+        // Use AI to analyze image
+        updateFileState(index, { status: 'analyzing', progress: 50 });
+        try {
+          content = await analyzeImageWithAI(filePath, file.name);
+          extractedText = content;
+        } catch (aiError) {
+          console.error('AI analysis failed, using placeholder:', aiError);
+          content = `[Image: ${file.name}] - AI analysis unavailable`;
+        }
+      } else if (isDocument(file.name)) {
+        updateFileState(index, { status: 'analyzing' });
+        extractedText = await extractTextFromFile(file);
+        content = extractedText || `[Document: ${file.name}] - Content pending extraction`;
       }
+      
+      updateFileState(index, { progress: 80 });
 
       onFileProcessed({
         content,
@@ -177,8 +198,15 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onBatchComplete,
       >
         {fileStates.length > 0 ? (
           <div className="space-y-3">
-            <p className="text-sm font-medium mb-2">
-              {isProcessing ? 'Uploading files...' : 'Upload complete'}
+            <p className="text-sm font-medium mb-2 flex items-center gap-2 justify-center">
+              {isProcessing ? (
+                <>
+                  <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                  Processing files with AI...
+                </>
+              ) : (
+                'Upload complete'
+              )}
             </p>
             {fileStates.map((fs, i) => (
               <div key={i} className="flex items-center gap-3 text-left text-sm">
@@ -186,11 +214,15 @@ export function DoctrineFileUploader({ userId, onFileProcessed, onBatchComplete,
                   <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                 ) : fs.status === 'error' ? (
                   <X className="h-4 w-4 text-destructive flex-shrink-0" />
+                ) : fs.status === 'analyzing' ? (
+                  <Sparkles className="h-4 w-4 animate-pulse text-primary flex-shrink-0" />
                 ) : (
                   <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
                 )}
                 <span className="truncate flex-1">{fs.file.name}</span>
-                <span className="text-xs text-muted-foreground w-12 text-right">{fs.progress}%</span>
+                <span className="text-xs text-muted-foreground w-16 text-right">
+                  {fs.status === 'analyzing' ? 'AI...' : `${fs.progress}%`}
+                </span>
               </div>
             ))}
             <Progress value={totalProgress} className="mt-2" />
