@@ -32,6 +32,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [savedInterviewId, setSavedInterviewId] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   // IMPORTANT: WebSocket handlers capture values at connection time.
   // Use refs for anything that needs the latest value (e.g. status gating).
@@ -48,10 +49,15 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const agentVoiceRef = useRef<string>('echo');
   const audioContextRef = useRef<AudioContext | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const interviewTimerRef = useRef<number | null>(null);
+  const elapsedTimerRef = useRef<number | null>(null);
   
   // Use refs for accumulated text to avoid stale closure issues
   const aegisTextRef = useRef<string>('');
   const agentTextRef = useRef<string>('');
+
+  // Max interview duration: 10 minutes
+  const MAX_DURATION_MS = 10 * 60 * 1000;
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -94,6 +100,19 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
       ]);
 
       setStatus('live');
+      setElapsedTime(0);
+
+      // Start elapsed time counter
+      const startTime = Date.now();
+      elapsedTimerRef.current = window.setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+
+      // Auto-end after 10 minutes
+      interviewTimerRef.current = window.setTimeout(() => {
+        console.log('Interview reached 10-minute limit, auto-ending');
+        stopInterview();
+      }, MAX_DURATION_MS);
 
       // Aegis speaks first - trigger initial response
       setTimeout(() => {
@@ -217,6 +236,14 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
             text: finalText.trim(),
             timestamp: new Date()
           }]);
+        }
+        
+        // Check if Aegis said the closing phrase - end interview naturally
+        if (persona === 'aegis' && finalText.toLowerCase().includes('fortune favors the fortified')) {
+          console.log('Aegis delivered closing - ending interview naturally');
+          setTimeout(() => stopInterview(), 1500);
+          setCurrentSpeaker(null);
+          return;
         }
         
         if (persona === 'aegis') {
@@ -344,6 +371,16 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   };
 
   const stopInterview = useCallback(async () => {
+    // Clear timers
+    if (interviewTimerRef.current) {
+      clearTimeout(interviewTimerRef.current);
+      interviewTimerRef.current = null;
+    }
+    if (elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
+    }
+    
     aegisWsRef.current?.close();
     agentWsRef.current?.close();
     audioContextRef.current?.close();
@@ -482,10 +519,15 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
             </CardDescription>
           </div>
           {status === 'live' && (
-            <Badge variant="destructive" className="animate-pulse gap-1">
-              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-              LIVE
-            </Badge>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-mono text-muted-foreground">
+                {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')} / 10:00
+              </span>
+              <Badge variant="destructive" className="animate-pulse gap-1">
+                <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                LIVE
+              </Badge>
+            </div>
           )}
         </div>
       </CardHeader>
