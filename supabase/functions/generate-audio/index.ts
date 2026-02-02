@@ -43,8 +43,8 @@ function parseDialogueScript(text: string, hostVoice: string, guestVoice: string
   return segments.length > 0 ? segments : [{ voice: hostVoice, text: text.trim() }];
 }
 
-// Split text into smaller TTS-friendly chunks (reduced size for reliability)
-function splitTextIntoChunks(text: string, maxChars: number = 2000): string[] {
+// Split text into TTS-friendly chunks - using larger size for better audio continuity
+function splitTextIntoChunks(text: string, maxChars: number = 4000): string[] {
   if (text.length <= maxChars) {
     return [text];
   }
@@ -172,8 +172,8 @@ serve(async (req) => {
     const audioChunks: ArrayBuffer[] = [];
     const isDialogue = guestVoice && guestName;
     
-    // Use smaller chunk size for reliability
-    const MAX_CHARS = 2000;
+    // Use larger chunk size for fewer concatenation artifacts
+    const MAX_CHARS = 4000;
     
     if (isDialogue) {
       console.log(`Processing dialogue script with guest: ${guestName}`);
