@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FortressAgent } from '@/hooks/useFortressAgents';
@@ -35,6 +36,8 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [savedEpisodeId, setSavedEpisodeId] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const audioRef = useRef<HTMLAudioElement>(null);
   
   // Script editing state (like Generate page)
   const [editableScript, setEditableScript] = useState('');
@@ -816,8 +819,39 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
               
               {/* Audio player and download */}
               {audioUrl && (
-                <div className="flex flex-col gap-2">
-                  <audio controls src={audioUrl} className="w-full" />
+                <div className="flex flex-col gap-3 p-4 border rounded-lg bg-muted/30">
+                  <audio 
+                    ref={audioRef} 
+                    controls 
+                    src={audioUrl} 
+                    className="w-full" 
+                    onLoadedMetadata={() => {
+                      if (audioRef.current) {
+                        audioRef.current.playbackRate = playbackRate;
+                      }
+                    }}
+                  />
+                  
+                  {/* Playback Speed Control */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">Speed:</span>
+                    <Slider
+                      value={[playbackRate]}
+                      min={0.5}
+                      max={2}
+                      step={0.1}
+                      onValueChange={(values) => {
+                        const rate = values[0];
+                        setPlaybackRate(rate);
+                        if (audioRef.current) {
+                          audioRef.current.playbackRate = rate;
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-mono w-12 text-right">{playbackRate.toFixed(1)}x</span>
+                  </div>
+                  
                   <Button onClick={downloadAudio} className="w-full gap-2">
                     <Download className="h-4 w-4" />
                     Download MP3
