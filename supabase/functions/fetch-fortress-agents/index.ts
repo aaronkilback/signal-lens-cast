@@ -24,19 +24,13 @@ serve(async (req) => {
   try {
     const rawApiKey = Deno.env.get("FORTRESS_API_KEY") || "";
     
-    // Log character codes to debug what's in the key
-    const charCodes = [...rawApiKey].map((c, i) => `${i}:${c.charCodeAt(0)}`).join(",");
-    console.log(`Raw key char codes: ${charCodes}`);
-    
-    // Keep only printable ASCII (0x21-0x7E, excludes space for safety)
+    // Keep only printable ASCII (0x21-0x7E)
     const FORTRESS_API_KEY = [...rawApiKey]
       .filter(c => {
         const code = c.charCodeAt(0);
         return code >= 0x21 && code <= 0x7E;
       })
       .join("");
-
-    console.log(`API key length: raw=${rawApiKey.length}, sanitized=${FORTRESS_API_KEY.length}`);
 
     if (!FORTRESS_API_KEY) {
       throw new Error("FORTRESS_API_KEY is not configured");
@@ -57,7 +51,9 @@ serve(async (req) => {
       throw new Error(`Failed to fetch agents: ${response.status}`);
     }
 
-    const agents: FortressAgent[] = await response.json();
+    const apiResponse = await response.json();
+    // Fortress API returns { data: [...] }, extract the array
+    const agents: FortressAgent[] = apiResponse.data || apiResponse;
     
     console.log(`Fetched ${agents.length} agents from Fortress`);
 
