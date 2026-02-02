@@ -22,23 +22,24 @@ serve(async (req) => {
   }
 
   try {
-    // Sanitize because Deno rejects header values containing newlines or non-ByteString chars
-    const rawApiKey = Deno.env.get("FORTRESS_API_KEY");
-    const FORTRESS_API_KEY = rawApiKey
-      ?.normalize("NFKC")
-      .replace(/\r?\n/g, "")
-      // Remove control chars + any non-ASCII that may be accidentally pasted (e.g. zero-width spaces)
-      .replace(/[^\x20-\x7E]/g, "")
-      .trim();
+    const rawApiKey = Deno.env.get("FORTRESS_API_KEY") || "";
+    
+    // Log character codes to debug what's in the key
+    const charCodes = [...rawApiKey].map((c, i) => `${i}:${c.charCodeAt(0)}`).join(",");
+    console.log(`Raw key char codes: ${charCodes}`);
+    
+    // Keep only printable ASCII (0x21-0x7E, excludes space for safety)
+    const FORTRESS_API_KEY = [...rawApiKey]
+      .filter(c => {
+        const code = c.charCodeAt(0);
+        return code >= 0x21 && code <= 0x7E;
+      })
+      .join("");
+
+    console.log(`API key length: raw=${rawApiKey.length}, sanitized=${FORTRESS_API_KEY.length}`);
 
     if (!FORTRESS_API_KEY) {
       throw new Error("FORTRESS_API_KEY is not configured");
-    }
-
-    if (rawApiKey && rawApiKey.length !== FORTRESS_API_KEY.length) {
-      console.log(
-        `FORTRESS_API_KEY sanitized (rawLen=${rawApiKey.length}, sanitizedLen=${FORTRESS_API_KEY.length})`,
-      );
     }
 
     // Fetch agents from Fortress API
