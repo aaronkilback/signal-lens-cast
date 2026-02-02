@@ -10,7 +10,6 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Generate from "./pages/Generate";
 import Interview from "./pages/Interview";
-import FortressAgents from "./pages/FortressAgents";
 import LibraryPage from "./pages/Library";
 import Doctrine from "./pages/Doctrine";
 import GuestPortal from "./pages/GuestPortal";
@@ -52,14 +51,6 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Interview />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/fortress-agents"
-              element={
-                <ProtectedRoute>
-                  <FortressAgents />
                 </ProtectedRoute>
               }
             />
