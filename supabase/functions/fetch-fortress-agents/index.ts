@@ -27,10 +27,10 @@ serve(async (req) => {
     }
 
     // Fetch agents from Fortress API
-    const response = await fetch("https://fortress.silentshield.dev/api/agents", {
+    const response = await fetch("https://udbjjeppbgwjlqmaeftn.supabase.co/functions/v1/api-v1-agents", {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${FORTRESS_API_KEY}`,
+        "x-api-key": FORTRESS_API_KEY,
         "Content-Type": "application/json",
       },
     });
