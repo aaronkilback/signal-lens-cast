@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,12 @@ interface FortressAgent {
   systemPrompt?: string;
   voiceId?: string;
   personality?: string;
+}
+
+interface PriorInterview {
+  agent_codename: string;
+  transcript: Array<{ role: string; text: string }>;
+  created_at: string;
 }
 
 // OpenAI Realtime voices with personality mappings
@@ -72,9 +79,31 @@ function inferVoiceFromAgent(agent: FortressAgent): string {
   return "echo";
 }
 
-// Build Aegis's interview instructions
-function buildAegisInstructions(agent: FortressAgent): string {
+// Build Aegis's interview instructions with prior interview context
+function buildAegisInstructions(agent: FortressAgent, priorInterviews: PriorInterview[] = []): string {
   const expertise = agent.expertise?.length > 0 ? agent.expertise.join(" and ") : "their specialized domain";
+  
+  // Build context from prior interviews
+  let priorContext = "";
+  if (priorInterviews.length > 0) {
+    priorContext = `\n\n=== YOUR INTERVIEW HISTORY ===
+You have conducted ${priorInterviews.length} previous AI-to-AI interviews on The Fortified. Here are summaries:
+
+${priorInterviews.slice(0, 5).map((interview, i) => {
+  const highlights = interview.transcript
+    .filter(t => t.role === 'agent')
+    .slice(0, 2)
+    .map(t => t.text.substring(0, 150) + '...')
+    .join(' ');
+  return `${i + 1}. Interview with ${interview.agent_codename} (${new Date(interview.created_at).toLocaleDateString()}):
+   Key insight: "${highlights}"`;
+}).join('\n\n')}
+
+Use this context to:
+- Reference prior guests naturally ("As I discussed with [codename]...")
+- Build on themes from previous interviews
+- Show continuity in The Fortified's coverage`;
+  }
   
   return `You are Aegis—the strategic security intelligence advisor and host of "The Fortified" podcast by Silent Shield Security.
 
@@ -88,6 +117,7 @@ function buildAegisInstructions(agent: FortressAgent): string {
 - You are NOT hosting "Meet the Minds" or any other podcast
 - You ARE hosting "The Fortified" podcast
 - You specialize in security, risk intelligence, and protection of high-value individuals
+${priorContext}
 
 === YOUR GUEST: ${agent.name.toUpperCase()} (${agent.codename}) ===
 ${agent.description || "A specialized AI agent from the Fortress intelligence platform."}
@@ -153,6 +183,8 @@ serve(async (req) => {
   try {
     const { agent, mode } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not configured");
@@ -163,8 +195,29 @@ serve(async (req) => {
     }
 
     const isAegis = mode === "aegis";
+    let priorInterviews: PriorInterview[] = [];
+    
+    // Fetch prior interviews for Aegis context
+    if (isAegis && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data } = await supabase
+          .from('agent_interviews')
+          .select('agent_codename, transcript, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5);
+        
+        if (data) {
+          priorInterviews = data as PriorInterview[];
+          console.log(`Loaded ${priorInterviews.length} prior interviews for context`);
+        }
+      } catch (err) {
+        console.error('Failed to fetch prior interviews:', err);
+      }
+    }
+    
     const instructions = isAegis 
-      ? buildAegisInstructions(agent)
+      ? buildAegisInstructions(agent, priorInterviews)
       : buildAgentInstructions(agent);
 
     const voice = isAegis ? "ash" : inferVoiceFromAgent(agent);

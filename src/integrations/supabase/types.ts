@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_interviews: {
+        Row: {
+          agent_codename: string
+          agent_id: string
+          agent_name: string
+          audio_url: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          topic: string | null
+          transcript: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_codename: string
+          agent_id: string
+          agent_name: string
+          audio_url?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          topic?: string | null
+          transcript?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_codename?: string
+          agent_id?: string
+          agent_name?: string
+          audio_url?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          topic?: string | null
+          transcript?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       doctrine_documents: {
         Row: {
           content: string
