@@ -30,8 +30,16 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   
   const aegisWsRef = useRef<WebSocket | null>(null);
   const agentWsRef = useRef<WebSocket | null>(null);
+  const aegisInstructionsRef = useRef<string>('');
+  const agentInstructionsRef = useRef<string>('');
+  const aegisVoiceRef = useRef<string>('ash');
+  const agentVoiceRef = useRef<string>('echo');
   const audioContextRef = useRef<AudioContext | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Use refs for accumulated text to avoid stale closure issues
+  const aegisTextRef = useRef<string>('');
+  const agentTextRef = useRef<string>('');
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -57,6 +65,12 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
       if (aegisResult.error || agentResult.error) {
         throw new Error(aegisResult.error?.message || agentResult.error?.message);
       }
+
+      // Store instructions for session.update after WebSocket connects
+      aegisInstructionsRef.current = aegisResult.data.instructions;
+      agentInstructionsRef.current = agentResult.data.instructions;
+      aegisVoiceRef.current = aegisResult.data.voice || 'ash';
+      agentVoiceRef.current = agentResult.data.voice || 'echo';
 
       // Initialize audio context
       audioContextRef.current = new AudioContext({ sampleRate: 24000 });
@@ -100,6 +114,27 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
 
       ws.onopen = () => {
         console.log(`${persona} session connected`);
+        
+        // Send session.update with instructions immediately after connection
+        const instructions = persona === 'aegis' ? aegisInstructionsRef.current : agentInstructionsRef.current;
+        const voice = persona === 'aegis' ? aegisVoiceRef.current : agentVoiceRef.current;
+        
+        ws.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            instructions,
+            voice,
+            input_audio_transcription: { model: 'whisper-1' },
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 700,
+            },
+          }
+        }));
+        
+        console.log(`${persona} session configured with instructions`);
         resolve();
       };
 
@@ -121,65 +156,93 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
 
   const handleMessage = (message: any, persona: 'aegis' | 'agent') => {
     switch (message.type) {
+      case 'session.updated':
+        console.log(`${persona} session updated successfully`);
+        break;
+        
       case 'response.audio_transcript.delta':
         if (persona === 'aegis') {
-          setAegisText(prev => prev + message.delta);
+          aegisTextRef.current += message.delta;
+          setAegisText(aegisTextRef.current);
           setCurrentSpeaker('aegis');
         } else {
-          setAgentText(prev => prev + message.delta);
+          agentTextRef.current += message.delta;
+          setAgentText(agentTextRef.current);
           setCurrentSpeaker('agent');
         }
         break;
 
       case 'response.audio_transcript.done':
-        const text = persona === 'aegis' ? aegisText + (message.transcript || '') : agentText + (message.transcript || '');
-        if (text.trim()) {
+        const finalText = message.transcript || (persona === 'aegis' ? aegisTextRef.current : agentTextRef.current);
+        console.log(`${persona} finished speaking:`, finalText.substring(0, 50) + '...');
+        
+        if (finalText.trim()) {
           setTranscript(prev => [...prev, {
             role: persona,
-            text: text.trim(),
+            text: finalText.trim(),
             timestamp: new Date()
           }]);
         }
+        
         if (persona === 'aegis') {
+          aegisTextRef.current = '';
           setAegisText('');
           // After Aegis speaks, trigger agent response
-          setTimeout(() => sendToAgent(text), 500);
+          if (finalText.trim()) {
+            setTimeout(() => sendToAgent(finalText), 500);
+          }
         } else {
+          agentTextRef.current = '';
           setAgentText('');
           // After agent speaks, trigger Aegis follow-up
-          setTimeout(() => sendToAegis(text), 500);
+          if (finalText.trim()) {
+            setTimeout(() => sendToAegis(finalText), 500);
+          }
         }
         setCurrentSpeaker(null);
         break;
 
       case 'response.audio.delta':
-        // Play audio
+        // Play audio (PCM16 format from OpenAI Realtime)
         if (audioContextRef.current && message.delta) {
-          playAudio(message.delta);
+          playPCMAudio(message.delta);
         }
+        break;
+        
+      case 'error':
+        console.error(`${persona} error:`, message.error);
         break;
     }
   };
 
-  const playAudio = async (base64Audio: string) => {
+  const playPCMAudio = async (base64Audio: string) => {
     if (!audioContextRef.current) return;
     
     try {
-      const audioData = atob(base64Audio);
-      const arrayBuffer = new ArrayBuffer(audioData.length);
-      const view = new Uint8Array(arrayBuffer);
-      for (let i = 0; i < audioData.length; i++) {
-        view[i] = audioData.charCodeAt(i);
+      // Decode base64 to binary
+      const binaryString = atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
       
-      // Decode and play (simplified - actual implementation would need proper PCM handling)
-      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      // Convert PCM16 LE to Float32 for Web Audio API
+      const pcm16 = new Int16Array(bytes.buffer);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768;
+      }
+      
+      // Create audio buffer and play
+      const audioBuffer = audioContextRef.current.createBuffer(1, float32.length, 24000);
+      audioBuffer.copyToChannel(float32, 0);
+      
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(audioContextRef.current.destination);
       source.start();
     } catch (e) {
-      // Silently handle audio decode errors
+      console.error('Audio playback error:', e);
     }
   };
 
