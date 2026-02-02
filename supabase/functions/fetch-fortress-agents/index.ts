@@ -2,7 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  // Must include all headers the browser may send when invoking this function
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface FortressAgent {
@@ -20,10 +22,23 @@ serve(async (req) => {
   }
 
   try {
-    const FORTRESS_API_KEY = Deno.env.get("FORTRESS_API_KEY");
+    // Sanitize because Deno rejects header values containing newlines or non-ByteString chars
+    const rawApiKey = Deno.env.get("FORTRESS_API_KEY");
+    const FORTRESS_API_KEY = rawApiKey
+      ?.normalize("NFKC")
+      .replace(/\r?\n/g, "")
+      // Remove control chars + any non-ASCII that may be accidentally pasted (e.g. zero-width spaces)
+      .replace(/[^\x20-\x7E]/g, "")
+      .trim();
 
     if (!FORTRESS_API_KEY) {
       throw new Error("FORTRESS_API_KEY is not configured");
+    }
+
+    if (rawApiKey && rawApiKey.length !== FORTRESS_API_KEY.length) {
+      console.log(
+        `FORTRESS_API_KEY sanitized (rawLen=${rawApiKey.length}, sanitizedLen=${FORTRESS_API_KEY.length})`,
+      );
     }
 
     // Fetch agents from Fortress API
