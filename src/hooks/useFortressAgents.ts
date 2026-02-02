@@ -10,6 +10,7 @@ export interface FortressAgent {
   voiceId?: string;
   personality?: string;
   avatarImage?: string;
+  systemPrompt?: string;  // The agent's full persona/instructions
 }
 
 // Map Fortress API response to our expected interface
@@ -18,11 +19,12 @@ function mapApiAgent(apiAgent: any): FortressAgent {
     id: apiAgent.id,
     name: apiAgent.header_name || apiAgent.codename || 'Unknown',
     codename: apiAgent.codename || apiAgent.call_sign || 'Unknown',
-    expertise: apiAgent.input_sources || apiAgent.output_types || [],
-    description: apiAgent.mission_scope || apiAgent.persona || '',
+    expertise: apiAgent.output_types || apiAgent.input_sources || [],
+    description: apiAgent.mission_scope || '',
     voiceId: apiAgent.voice_id,
-    personality: apiAgent.persona,
+    personality: apiAgent.interaction_style,
     avatarImage: apiAgent.avatar_image,
+    systemPrompt: apiAgent.persona,  // The full system prompt for the agent
   };
 }
 
