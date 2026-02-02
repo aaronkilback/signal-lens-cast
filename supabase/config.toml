@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.generate-captions]
 verify_jwt = false
+
+[functions.fetch-fortress-agents]
+verify_jwt = false
+
+[functions.agent-interview-session]
+verify_jwt = false
