@@ -3,11 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FortressAgent } from '@/hooks/useFortressAgents';
 import { useAuth } from '@/hooks/useAuth';
-import { Bot, Mic, Radio, Square, Volume2, Download, Loader2 } from 'lucide-react';
+import { Bot, Mic, Radio, Square, Volume2, Download, Loader2, Edit3, Check, Save, FileText } from 'lucide-react';
 import aegisAvatar from '@/assets/aegis-avatar.png';
 
 interface TranscriptEntry {
@@ -31,8 +32,19 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const [agentText, setAgentText] = useState('');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [savedInterviewId, setSavedInterviewId] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [savedEpisodeId, setSavedEpisodeId] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  
+  // Script editing state (like Generate page)
+  const [editableScript, setEditableScript] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const editableScriptRef = useRef('');
+  
+  // Keep ref in sync
+  useEffect(() => {
+    editableScriptRef.current = editableScript;
+  }, [editableScript]);
 
   // IMPORTANT: WebSocket handlers capture values at connection time.
   // Use refs for anything that needs the latest value (e.g. status gating).
@@ -386,49 +398,155 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
     audioContextRef.current?.close();
     setStatus('idle');
     
-    // Save interview to database
-    if (user && transcript.length > 0) {
-      try {
-        const { data, error } = await supabase
-          .from('agent_interviews')
-          .insert({
-            user_id: user.id,
-            agent_id: agent.id,
-            agent_codename: agent.codename,
-            agent_name: agent.name,
-            transcript: transcript.map(t => ({ role: t.role, text: t.text })),
-          })
-          .select('id')
-          .single();
-        
-        if (error) throw error;
-        setSavedInterviewId(data.id);
-        
-        toast({
-          title: 'Interview Saved',
-          description: 'Transcript saved. You can now generate the audio.',
-        });
-      } catch (err) {
-        console.error('Failed to save interview:', err);
-      }
-    }
-    
-    onComplete(transcript);
-  }, [transcript, onComplete, user, agent, toast]);
-
-  const generateAudio = async () => {
-    if (transcript.length === 0) return;
-    
-    setIsGeneratingAudio(true);
-    try {
-      // Format transcript as dialogue script
-      const scriptText = transcript
+    // Convert transcript to script format
+    if (transcript.length > 0) {
+      const script = transcript
         .map(entry => {
           const label = entry.role === 'aegis' ? '[AEGIS]' : `[${agent.codename.toUpperCase()}]`;
           return `${label}: ${entry.text}`;
         })
         .join('\n\n');
+      setEditableScript(script);
       
+      toast({
+        title: 'Interview Complete',
+        description: 'Review and edit the script, then save as an episode.',
+      });
+    }
+    
+    onComplete(transcript);
+  }, [transcript, onComplete, agent, toast]);
+
+  // Format transcript to script
+  const getScriptFromTranscript = useCallback(() => {
+    return transcript
+      .map(entry => {
+        const label = entry.role === 'aegis' ? '[AEGIS]' : `[${agent.codename.toUpperCase()}]`;
+        return `${label}: ${entry.text}`;
+      })
+      .join('\n\n');
+  }, [transcript, agent.codename]);
+
+  // Save as episode (like Generate page)
+  const handleSaveEpisode = async () => {
+    const scriptToSave = editableScriptRef.current || getScriptFromTranscript();
+    if (!scriptToSave || !user) return;
+
+    try {
+      // Extract metadata
+      let metadata = {
+        key_stories: [] as string[],
+        people_mentioned: [agent.name, agent.codename] as string[],
+        themes: agent.expertise || [],
+        episode_summary: `AI-to-AI interview with ${agent.codename} (${agent.name}) discussing ${agent.expertise[0] || 'specialized intelligence'}.`,
+      };
+
+      try {
+        const metadataResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              script: scriptToSave,
+              topic: `Fortress Interview: ${agent.codename}`,
+            }),
+          }
+        );
+
+        if (metadataResponse.ok) {
+          metadata = await metadataResponse.json();
+        }
+      } catch (metaError) {
+        console.warn('Could not extract metadata:', metaError);
+      }
+
+      const episodeTitle = `Fortress Interview: ${agent.codename} - ${agent.name}`;
+      
+      const episodeData = {
+        user_id: user.id,
+        title: episodeTitle,
+        topic: `AI-to-AI interview with ${agent.codename} on ${agent.expertise[0] || 'specialized intelligence'}`,
+        target_audience: 'executives',
+        risk_domains: agent.expertise.slice(0, 3),
+        content_length: Math.ceil(elapsedTime / 60),
+        tone_intensity: 'strategic',
+        output_mode: 'podcast_script',
+        script_content: scriptToSave,
+        status: 'completed',
+        key_stories: metadata.key_stories,
+        people_mentioned: metadata.people_mentioned,
+        themes: metadata.themes,
+        episode_summary: metadata.episode_summary,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (savedEpisodeId) {
+        // Update existing episode
+        const { error } = await supabase
+          .from('episodes')
+          .update(episodeData)
+          .eq('id', savedEpisodeId)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Episode Updated',
+          description: `Saved at ${new Date().toLocaleTimeString()}`,
+        });
+      } else {
+        // Create new episode
+        const { data, error } = await supabase
+          .from('episodes')
+          .insert(episodeData)
+          .select('id')
+          .single();
+
+        if (error) throw error;
+
+        if (data?.id) {
+          setSavedEpisodeId(data.id);
+        }
+
+        toast({
+          title: 'Episode Saved',
+          description: 'Added to your intelligence library.',
+        });
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: 'Save Failed',
+        description: 'Could not save the episode.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Toggle editing mode
+  const handleToggleEdit = async () => {
+    if (isEditing) {
+      // Save edits
+      setIsEditing(false);
+      toast({
+        title: 'Script Updated',
+        description: 'Changes saved. Generate audio when ready.',
+      });
+    } else {
+      setIsEditing(true);
+    }
+  };
+
+  const generateAudio = async () => {
+    const scriptToUse = editableScriptRef.current || getScriptFromTranscript();
+    if (!scriptToUse) return;
+    
+    setIsGeneratingAudio(true);
+    try {
       // Generate audio via edge function (same as episode generator)
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audio`,
@@ -440,7 +558,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
-            text: scriptText,
+            text: scriptToUse,
             voice: 'onyx', // Aegis voice
             guestVoice: 'echo', // Default agent voice
             guestName: agent.codename,
@@ -453,28 +571,29 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
         throw new Error(errorData.error || `Audio generation failed: ${response.status}`);
       }
 
-      const audioBlob = await response.blob();
-      const url = URL.createObjectURL(audioBlob);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioBlob(blob);
       setAudioUrl(url);
       
-      // Upload to storage if we have a saved interview
-      if (savedInterviewId && user) {
-        const fileName = `agent-interview-${savedInterviewId}.mp3`;
+      // Upload to storage if we have a saved episode
+      if (savedEpisodeId && user) {
+        const fileName = `episode-${savedEpisodeId}.mp3`;
         const storagePath = `${user.id}/${fileName}`;
         
         const { error: uploadError } = await supabase.storage
           .from('recordings')
-          .upload(storagePath, audioBlob, { 
+          .upload(storagePath, blob, { 
             contentType: 'audio/mpeg',
             upsert: true 
           });
         
         if (!uploadError) {
-          // Update interview record with audio URL
+          // Update episode record with audio URL
           await supabase
-            .from('agent_interviews')
+            .from('episodes')
             .update({ audio_url: storagePath })
-            .eq('id', savedInterviewId);
+            .eq('id', savedEpisodeId);
         }
       }
       
@@ -495,14 +614,22 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   };
 
   const downloadAudio = () => {
-    if (!audioUrl) return;
-    
-    const link = document.createElement('a');
-    link.href = audioUrl;
-    link.download = `fortified-${agent.codename.toLowerCase()}-interview.mp3`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (!audioBlob) return;
+
+    const filename = `fortified-${agent.codename.toLowerCase()}-interview-${new Date().toISOString().split('T')[0]}.mp3`;
+    const url = URL.createObjectURL(audioBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Audio Downloaded',
+      description: `Saved as ${filename} — Ready for Buzzsprout upload.`,
+    });
   };
 
   return (
@@ -576,65 +703,107 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
           </div>
         </div>
 
-        {/* Transcript */}
+        {/* Transcript OR Script Editor */}
         <div className="flex-1 min-h-0">
-          <ScrollArea className="h-full" ref={scrollRef}>
-            <div className="space-y-3 pr-4">
-              {transcript.map((entry, idx) => (
-                <div key={idx} className={`flex gap-3 ${entry.role === 'aegis' ? '' : 'flex-row-reverse'}`}>
-                  <div className={`flex-1 p-3 rounded-lg ${entry.role === 'aegis' ? 'bg-muted' : 'bg-primary/10'}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">
-                        {entry.role === 'aegis' ? 'Aegis' : agent.codename}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {entry.timestamp.toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <p className="text-sm">{entry.text}</p>
-                  </div>
+          {status === 'idle' && editableScript ? (
+            // Script Editor (post-interview)
+            <div className="h-full flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Episode Script
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleToggleEdit}
+                    className="gap-1"
+                  >
+                    {isEditing ? (
+                      <>
+                        <Check className="h-3 w-3" />
+                        Done Editing
+                      </>
+                    ) : (
+                      <>
+                        <Edit3 className="h-3 w-3" />
+                        Edit Script
+                      </>
+                    )}
+                  </Button>
                 </div>
-              ))}
-              {transcript.length === 0 && status === 'idle' && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Start the interview to hear Aegis and {agent.codename} discuss {agent.expertise[0]}</p>
-                </div>
+              </div>
+              {isEditing ? (
+                <Textarea
+                  value={editableScript}
+                  onChange={(e) => setEditableScript(e.target.value)}
+                  className="flex-1 min-h-[300px] font-mono text-sm resize-none"
+                  placeholder="Edit the script..."
+                />
+              ) : (
+                <ScrollArea className="flex-1 border rounded-lg p-4">
+                  <pre className="whitespace-pre-wrap text-sm font-mono">
+                    {editableScript}
+                  </pre>
+                </ScrollArea>
               )}
             </div>
-          </ScrollArea>
+          ) : (
+            // Live Transcript (during interview)
+            <ScrollArea className="h-full" ref={scrollRef}>
+              <div className="space-y-3 pr-4">
+                {transcript.map((entry, idx) => (
+                  <div key={idx} className={`flex gap-3 ${entry.role === 'aegis' ? '' : 'flex-row-reverse'}`}>
+                    <div className={`flex-1 p-3 rounded-lg ${entry.role === 'aegis' ? 'bg-muted' : 'bg-primary/10'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm">
+                          {entry.role === 'aegis' ? 'Aegis' : agent.codename}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {entry.timestamp.toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm">{entry.text}</p>
+                    </div>
+                  </div>
+                ))}
+                {transcript.length === 0 && status === 'idle' && !editableScript && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Start the interview to hear Aegis and {agent.codename} discuss {agent.expertise[0]}</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          )}
         </div>
 
         {/* Controls */}
         <div className="flex gap-3 flex-wrap">
-          {status === 'idle' && transcript.length === 0 && (
+          {status === 'idle' && !editableScript && transcript.length === 0 && (
             <Button onClick={startInterview} className="flex-1 gap-2">
               <Mic className="h-4 w-4" />
               Start Interview
             </Button>
           )}
-          {status === 'idle' && transcript.length > 0 && (
+          {status === 'idle' && editableScript && (
             <div className="flex flex-col gap-2 w-full">
+              {/* Top row: Save + Generate Audio */}
               <div className="flex gap-2">
-                <Button onClick={startInterview} variant="outline" className="flex-1 gap-2">
-                  <Mic className="h-4 w-4" />
-                  New Interview
+                <Button onClick={handleSaveEpisode} variant="outline" className="flex-1 gap-2">
+                  <Save className="h-4 w-4" />
+                  {savedEpisodeId ? 'Update Episode' : 'Save as Episode'}
                 </Button>
                 <Button 
                   onClick={generateAudio} 
-                  disabled={isGeneratingAudio || !!audioUrl}
+                  disabled={isGeneratingAudio}
                   className="flex-1 gap-2"
-                  variant={audioUrl ? "outline" : "default"}
                 >
                   {isGeneratingAudio ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Generating...
-                    </>
-                  ) : audioUrl ? (
-                    <>
-                      <Volume2 className="h-4 w-4 text-green-500" />
-                      Audio Ready
                     </>
                   ) : (
                     <>
@@ -644,12 +813,35 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
                   )}
                 </Button>
               </div>
+              
+              {/* Audio player and download */}
               {audioUrl && (
-                <Button onClick={downloadAudio} className="w-full gap-2">
-                  <Download className="h-4 w-4" />
-                  Download MP3
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <audio controls src={audioUrl} className="w-full" />
+                  <Button onClick={downloadAudio} className="w-full gap-2">
+                    <Download className="h-4 w-4" />
+                    Download MP3
+                  </Button>
+                </div>
               )}
+              
+              {/* New Interview button */}
+              <Button 
+                onClick={() => {
+                  setTranscript([]);
+                  setEditableScript('');
+                  setAudioUrl(null);
+                  setAudioBlob(null);
+                  setSavedEpisodeId(null);
+                  setElapsedTime(0);
+                  startInterview();
+                }} 
+                variant="ghost" 
+                className="w-full gap-2"
+              >
+                <Mic className="h-4 w-4" />
+                Start New Interview
+              </Button>
             </div>
           )}
           {status === 'connecting' && (
