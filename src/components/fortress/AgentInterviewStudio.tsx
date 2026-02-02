@@ -614,21 +614,27 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
             </Button>
           )}
           {status === 'idle' && transcript.length > 0 && (
-            <>
-              <Button onClick={startInterview} variant="outline" className="flex-1 gap-2">
-                <Mic className="h-4 w-4" />
-                New Interview
-              </Button>
-              {!audioUrl ? (
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex gap-2">
+                <Button onClick={startInterview} variant="outline" className="flex-1 gap-2">
+                  <Mic className="h-4 w-4" />
+                  New Interview
+                </Button>
                 <Button 
                   onClick={generateAudio} 
-                  disabled={isGeneratingAudio}
+                  disabled={isGeneratingAudio || !!audioUrl}
                   className="flex-1 gap-2"
+                  variant={audioUrl ? "outline" : "default"}
                 >
                   {isGeneratingAudio ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Generating...
+                    </>
+                  ) : audioUrl ? (
+                    <>
+                      <Volume2 className="h-4 w-4 text-green-500" />
+                      Audio Ready
                     </>
                   ) : (
                     <>
@@ -637,13 +643,14 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
                     </>
                   )}
                 </Button>
-              ) : (
-                <Button onClick={downloadAudio} className="flex-1 gap-2">
+              </div>
+              {audioUrl && (
+                <Button onClick={downloadAudio} className="w-full gap-2">
                   <Download className="h-4 w-4" />
                   Download MP3
                 </Button>
               )}
-            </>
+            </div>
           )}
           {status === 'connecting' && (
             <Button disabled className="flex-1 gap-2">
