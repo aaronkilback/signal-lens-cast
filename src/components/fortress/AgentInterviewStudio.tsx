@@ -27,6 +27,13 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const [currentSpeaker, setCurrentSpeaker] = useState<'aegis' | 'agent' | null>(null);
   const [aegisText, setAegisText] = useState('');
   const [agentText, setAgentText] = useState('');
+
+  // IMPORTANT: WebSocket handlers capture values at connection time.
+  // Use refs for anything that needs the latest value (e.g. status gating).
+  const statusRef = useRef<typeof status>('idle');
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
   
   const aegisWsRef = useRef<WebSocket | null>(null);
   const agentWsRef = useRef<WebSocket | null>(null);
@@ -101,6 +108,20 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
 
   const connectSession = (clientSecret: string, persona: 'aegis' | 'agent'): Promise<void> => {
     return new Promise((resolve, reject) => {
+      let resolved = false;
+      const safeResolve = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+
+      const timeoutId = window.setTimeout(() => {
+        if (!resolved) {
+          console.warn(`${persona} session.update not confirmed within timeout; continuing anyway`);
+          safeResolve();
+        }
+      }, 5000);
+
       const ws = new WebSocket(
         `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17`,
         ['realtime', `openai-insecure-api-key.${clientSecret}`, 'openai-beta.realtime-v1']
@@ -135,21 +156,30 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
         }));
         
         console.log(`${persona} session configured with instructions`);
-        resolve();
       };
 
       ws.onerror = (event) => {
         console.error(`${persona} WebSocket error:`, event);
+        window.clearTimeout(timeoutId);
         reject(new Error(`${persona} connection failed`));
       };
 
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
+
+        // Confirm session.update applied before we proceed (helps ensure persona consistency)
+        if (message?.type === 'session.updated') {
+          console.log(`${persona} session.update confirmed`);
+          window.clearTimeout(timeoutId);
+          safeResolve();
+        }
+
         handleMessage(message, persona);
       };
 
       ws.onclose = () => {
         console.log(`${persona} session closed`);
+        window.clearTimeout(timeoutId);
       };
     });
   };
@@ -259,9 +289,11 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   };
 
   const sendToAgent = (aegisMessage: string) => {
-    if (!agentWsRef.current || status !== 'live') return;
+    const ws = agentWsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (statusRef.current !== 'live') return;
 
-    agentWsRef.current.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
         type: 'message',
@@ -273,7 +305,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
       }
     }));
 
-    agentWsRef.current.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: 'response.create',
       response: {
         modalities: ['text', 'audio']
@@ -282,9 +314,11 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   };
 
   const sendToAegis = (agentMessage: string) => {
-    if (!aegisWsRef.current || status !== 'live') return;
+    const ws = aegisWsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (statusRef.current !== 'live') return;
 
-    aegisWsRef.current.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
         type: 'message',
@@ -296,7 +330,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
       }
     }));
 
-    aegisWsRef.current.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: 'response.create',
       response: {
         modalities: ['text', 'audio']
