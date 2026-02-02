@@ -6,7 +6,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FortressAgent } from '@/hooks/useFortressAgents';
-import { Bot, Mic, MicOff, Radio, Square, Volume2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Bot, Mic, Radio, Square, Volume2, Download, Loader2 } from 'lucide-react';
 import aegisAvatar from '@/assets/aegis-avatar.png';
 
 interface TranscriptEntry {
@@ -22,11 +23,15 @@ interface AgentInterviewStudioProps {
 
 export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudioProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [status, setStatus] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [currentSpeaker, setCurrentSpeaker] = useState<'aegis' | 'agent' | null>(null);
   const [aegisText, setAegisText] = useState('');
   const [agentText, setAgentText] = useState('');
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [savedInterviewId, setSavedInterviewId] = useState<string | null>(null);
 
   // IMPORTANT: WebSocket handlers capture values at connection time.
   // Use refs for anything that needs the latest value (e.g. status gating).
@@ -338,13 +343,130 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
     }));
   };
 
-  const stopInterview = useCallback(() => {
+  const stopInterview = useCallback(async () => {
     aegisWsRef.current?.close();
     agentWsRef.current?.close();
     audioContextRef.current?.close();
     setStatus('idle');
+    
+    // Save interview to database
+    if (user && transcript.length > 0) {
+      try {
+        const { data, error } = await supabase
+          .from('agent_interviews')
+          .insert({
+            user_id: user.id,
+            agent_id: agent.id,
+            agent_codename: agent.codename,
+            agent_name: agent.name,
+            transcript: transcript.map(t => ({ role: t.role, text: t.text })),
+          })
+          .select('id')
+          .single();
+        
+        if (error) throw error;
+        setSavedInterviewId(data.id);
+        
+        toast({
+          title: 'Interview Saved',
+          description: 'Transcript saved. You can now generate the audio.',
+        });
+      } catch (err) {
+        console.error('Failed to save interview:', err);
+      }
+    }
+    
     onComplete(transcript);
-  }, [transcript, onComplete]);
+  }, [transcript, onComplete, user, agent, toast]);
+
+  const generateAudio = async () => {
+    if (transcript.length === 0) return;
+    
+    setIsGeneratingAudio(true);
+    try {
+      // Format transcript as dialogue script
+      const scriptText = transcript
+        .map(entry => {
+          const label = entry.role === 'aegis' ? '[AEGIS]' : `[${agent.codename.toUpperCase()}]`;
+          return `${label}: ${entry.text}`;
+        })
+        .join('\n\n');
+      
+      // Generate audio via edge function (same as episode generator)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audio`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            text: scriptText,
+            voice: 'onyx', // Aegis voice
+            guestVoice: 'echo', // Default agent voice
+            guestName: agent.codename,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Audio generation failed: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      const url = URL.createObjectURL(audioBlob);
+      setAudioUrl(url);
+      
+      // Upload to storage if we have a saved interview
+      if (savedInterviewId && user) {
+        const fileName = `agent-interview-${savedInterviewId}.mp3`;
+        const storagePath = `${user.id}/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('recordings')
+          .upload(storagePath, audioBlob, { 
+            contentType: 'audio/mpeg',
+            upsert: true 
+          });
+        
+        if (!uploadError) {
+          // Update interview record with audio URL
+          await supabase
+            .from('agent_interviews')
+            .update({ audio_url: storagePath })
+            .eq('id', savedInterviewId);
+        }
+      }
+      
+      toast({
+        title: 'Audio Generated',
+        description: 'Your interview audio is ready for download.',
+      });
+    } catch (err) {
+      console.error('Audio generation error:', err);
+      toast({
+        title: 'Audio Generation Failed',
+        description: err instanceof Error ? err.message : 'Failed to generate audio',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  const downloadAudio = () => {
+    if (!audioUrl) return;
+    
+    const link = document.createElement('a');
+    link.href = audioUrl;
+    link.download = `fortified-${agent.codename.toLowerCase()}-interview.mp3`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <Card className="h-full flex flex-col">
@@ -442,12 +564,44 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
         </div>
 
         {/* Controls */}
-        <div className="flex gap-3">
-          {status === 'idle' && (
+        <div className="flex gap-3 flex-wrap">
+          {status === 'idle' && transcript.length === 0 && (
             <Button onClick={startInterview} className="flex-1 gap-2">
               <Mic className="h-4 w-4" />
               Start Interview
             </Button>
+          )}
+          {status === 'idle' && transcript.length > 0 && (
+            <>
+              <Button onClick={startInterview} variant="outline" className="flex-1 gap-2">
+                <Mic className="h-4 w-4" />
+                New Interview
+              </Button>
+              {!audioUrl ? (
+                <Button 
+                  onClick={generateAudio} 
+                  disabled={isGeneratingAudio}
+                  className="flex-1 gap-2"
+                >
+                  {isGeneratingAudio ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="h-4 w-4" />
+                      Generate Audio
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button onClick={downloadAudio} className="flex-1 gap-2">
+                  <Download className="h-4 w-4" />
+                  Download MP3
+                </Button>
+              )}
+            </>
           )}
           {status === 'connecting' && (
             <Button disabled className="flex-1 gap-2">
