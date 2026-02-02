@@ -13,6 +13,81 @@ interface FortressAgent {
   description: string;
   systemPrompt?: string;
   voiceId?: string;
+  personality?: string; // e.g., "analytical", "warm", "authoritative", "calm"
+}
+
+// OpenAI Realtime voices with personality mappings
+const VOICE_PERSONALITY_MAP: Record<string, string> = {
+  // Authoritative/commanding voices
+  "authoritative": "ash",     // Deep, commanding
+  "commanding": "ash",
+  "serious": "ash",
+  
+  // Warm/friendly voices  
+  "warm": "coral",           // Warm, approachable
+  "friendly": "coral",
+  "empathetic": "coral",
+  "caring": "coral",
+  
+  // Analytical/precise voices
+  "analytical": "sage",      // Clear, measured
+  "precise": "sage",
+  "technical": "sage",
+  "logical": "sage",
+  
+  // Calm/soothing voices
+  "calm": "shimmer",         // Soft, calming
+  "soothing": "shimmer",
+  "gentle": "shimmer",
+  
+  // Energetic/dynamic voices
+  "energetic": "ballad",     // Upbeat, dynamic
+  "dynamic": "ballad",
+  "enthusiastic": "ballad",
+  
+  // Wise/experienced voices
+  "wise": "verse",           // Thoughtful, measured
+  "experienced": "verse",
+  "knowledgeable": "verse",
+};
+
+// Infer voice from agent characteristics
+function inferVoiceFromAgent(agent: FortressAgent): string {
+  // If agent has explicit voiceId, use it
+  if (agent.voiceId) {
+    return agent.voiceId;
+  }
+  
+  // If agent has personality trait, map it
+  if (agent.personality) {
+    const personality = agent.personality.toLowerCase();
+    if (VOICE_PERSONALITY_MAP[personality]) {
+      return VOICE_PERSONALITY_MAP[personality];
+    }
+  }
+  
+  // Infer from description/expertise keywords
+  const text = `${agent.description} ${agent.expertise.join(" ")}`.toLowerCase();
+  
+  // Check for keyword patterns
+  if (text.includes("emergency") || text.includes("crisis") || text.includes("security") || text.includes("threat")) {
+    return "ash"; // Authoritative for crisis/security
+  }
+  if (text.includes("medical") || text.includes("health") || text.includes("care") || text.includes("wellness")) {
+    return "coral"; // Warm for healthcare
+  }
+  if (text.includes("data") || text.includes("analysis") || text.includes("technical") || text.includes("cyber")) {
+    return "sage"; // Analytical for tech/data
+  }
+  if (text.includes("wildfire") || text.includes("disaster") || text.includes("evacuation") || text.includes("weather")) {
+    return "verse"; // Experienced for natural disasters
+  }
+  if (text.includes("training") || text.includes("education") || text.includes("coaching")) {
+    return "ballad"; // Energetic for training
+  }
+  
+  // Default: echo (neutral, professional)
+  return "echo";
 }
 
 // Build Aegis's interview instructions for an AI agent
@@ -122,8 +197,9 @@ serve(async (req) => {
       ? buildAegisInstructions(agent)
       : buildAgentInstructions(agent);
 
-    // Voice selection: Aegis uses "ash", agents use their configured voice or "echo"
-    const voice = isAegis ? "ash" : (agent.voiceId || "echo");
+    // Voice selection: Aegis uses "ash", agents get personality-matched voice
+    const voice = isAegis ? "ash" : inferVoiceFromAgent(agent);
+    console.log(`Assigned voice "${voice}" for ${isAegis ? "Aegis" : agent.codename}`);
 
     const sessionConfig = {
       model: "gpt-4o-realtime-preview-2024-12-17",
