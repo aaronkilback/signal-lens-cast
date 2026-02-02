@@ -210,6 +210,8 @@ serve(async (req) => {
         session_id: sessionData.id,
         expires_at: sessionData.expires_at,
         persona: isAegis ? "aegis" : agent.codename,
+        instructions,  // Return instructions so client can send session.update
+        voice,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
