@@ -5,18 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RealtimeInterview } from '@/components/RealtimeInterview';
 import { VideoRealtimeInterview } from '@/components/VideoRealtimeInterview';
 import { GuestSelector } from '@/components/GuestSelector';
-import { FortressAgentSelector } from '@/components/fortress/FortressAgentSelector';
-import { AgentInterviewStudio } from '@/components/fortress/AgentInterviewStudio';
 import { TranscriptEntry } from '@/hooks/useRealtimeInterview';
-import { FortressAgent } from '@/hooks/useFortressAgents';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, FileText, Users, Video, Bot } from 'lucide-react';
+import { Mic, FileText, Users, Video } from 'lucide-react';
 import { VoiceOption } from '@/lib/aegis-types';
 
 interface GuestProfile {
@@ -27,12 +24,6 @@ interface GuestProfile {
   expertise: string[];
   speakingStyle?: string;
   voiceId: VoiceOption;
-}
-
-interface AgentTranscriptEntry {
-  role: 'aegis' | 'agent';
-  text: string;
-  timestamp: Date;
 }
 
 const INTERVIEW_STORAGE_KEY = 'aegis-interview-setup';
@@ -57,15 +48,12 @@ export default function Interview() {
       customGuestName: '',
       customGuestBio: '',
       interviewMode: 'video',
-      guestType: 'human',
     };
   };
 
   const initialState = getInitialState();
   
-  const [guestType, setGuestType] = useState<'human' | 'agent'>(initialState.guestType);
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialState.selectedGuestId);
-  const [selectedAgent, setSelectedAgent] = useState<FortressAgent | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<GuestProfile | null>(null);
   const [topic, setTopic] = useState(initialState.topic);
   const [customGuestName, setCustomGuestName] = useState(initialState.customGuestName);
@@ -73,7 +61,6 @@ export default function Interview() {
   const [showInterview, setShowInterview] = useState(false);
   const [interviewMode, setInterviewMode] = useState<'audio' | 'video'>(initialState.interviewMode);
   const [completedTranscript, setCompletedTranscript] = useState<TranscriptEntry[] | null>(null);
-  const [completedAgentTranscript, setCompletedAgentTranscript] = useState<AgentTranscriptEntry[] | null>(null);
 
   // Persist state to localStorage
   useEffect(() => {
@@ -83,10 +70,9 @@ export default function Interview() {
       customGuestName,
       customGuestBio,
       interviewMode,
-      guestType,
     };
     localStorage.setItem(INTERVIEW_STORAGE_KEY, JSON.stringify(state));
-  }, [selectedGuestId, topic, customGuestName, customGuestBio, interviewMode, guestType]);
+  }, [selectedGuestId, topic, customGuestName, customGuestBio, interviewMode]);
 
   // Fetch selected guest data
   useEffect(() => {
@@ -119,28 +105,16 @@ export default function Interview() {
   }, [selectedGuestId, user]);
 
   const handleStartInterview = () => {
-    if (guestType === 'human') {
-      if (!selectedGuest && !customGuestName.trim()) {
-        toast({
-          title: 'Guest Required',
-          description: 'Please select or enter a guest for the interview.',
-          variant: 'destructive',
-        });
-        return;
-      }
-    } else {
-      if (!selectedAgent) {
-        toast({
-          title: 'Agent Required',
-          description: 'Please select a Fortress agent to interview.',
-          variant: 'destructive',
-        });
-        return;
-      }
+    if (!selectedGuest && !customGuestName.trim()) {
+      toast({
+        title: 'Guest Required',
+        description: 'Please select or enter a guest for the interview.',
+        variant: 'destructive',
+      });
+      return;
     }
     setShowInterview(true);
     setCompletedTranscript(null);
-    setCompletedAgentTranscript(null);
   };
 
   const handleInterviewComplete = (transcript: TranscriptEntry[]) => {
@@ -155,56 +129,25 @@ export default function Interview() {
     }
   };
 
-  const handleAgentInterviewComplete = (transcript: AgentTranscriptEntry[]) => {
-    setCompletedAgentTranscript(transcript);
-    setShowInterview(false);
-    
-    if (transcript.length > 0) {
-      toast({
-        title: 'Interview Complete',
-        description: `Captured ${transcript.length} conversation exchanges with ${selectedAgent?.codename}.`,
-      });
-    }
-  };
-
   const handleExportAsScript = () => {
-    if (guestType === 'human' && completedTranscript) {
-      const guestLabel = selectedGuest?.displayName || customGuestName || 'GUEST';
-      const script = completedTranscript
-        .map(entry => {
-          const label = entry.role === 'assistant' ? '[AEGIS]' : `[${guestLabel.toUpperCase()}]`;
-          return `${label}: ${entry.text}`;
-        })
-        .join('\n\n');
-      
-      navigator.clipboard.writeText(script);
-      toast({
-        title: 'Script Copied',
-        description: 'The interview script has been copied to your clipboard.',
-      });
-    } else if (guestType === 'agent' && completedAgentTranscript && selectedAgent) {
-      const script = completedAgentTranscript
-        .map(entry => {
-          const label = entry.role === 'aegis' ? '[AEGIS]' : `[${selectedAgent.codename.toUpperCase()}]`;
-          return `${label}: ${entry.text}`;
-        })
-        .join('\n\n');
-      
-      navigator.clipboard.writeText(script);
-      toast({
-        title: 'Script Copied',
-        description: 'The interview script has been copied to your clipboard.',
-      });
-    }
+    if (!completedTranscript) return;
+    
+    // Format transcript as a script
+    const guestLabel = selectedGuest?.displayName || customGuestName || 'GUEST';
+    const script = completedTranscript
+      .map(entry => {
+        const label = entry.role === 'assistant' ? '[AEGIS]' : `[${guestLabel.toUpperCase()}]`;
+        return `${label}: ${entry.text}`;
+      })
+      .join('\n\n');
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(script);
+    toast({
+      title: 'Script Copied',
+      description: 'The interview script has been copied to your clipboard.',
+    });
   };
-
-  const hasCompletedTranscript = guestType === 'human' 
-    ? completedTranscript && completedTranscript.length > 0
-    : completedAgentTranscript && completedAgentTranscript.length > 0;
-  
-  const transcriptCount = guestType === 'human'
-    ? completedTranscript?.length || 0
-    : completedAgentTranscript?.length || 0;
 
   const guestName = selectedGuest?.displayName || customGuestName;
   const guestBio = selectedGuest?.bio || customGuestBio;
@@ -236,125 +179,90 @@ export default function Interview() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Guest Type Selection */}
+                {/* Guest Selection */}
                 <div className="space-y-2">
-                  <Label>Interview Type</Label>
-                  <Tabs value={guestType} onValueChange={(v) => setGuestType(v as 'human' | 'agent')}>
+                  <Label>Select Guest</Label>
+                  <GuestSelector
+                    selectedGuestId={selectedGuestId}
+                    onGuestSelect={(id) => {
+                      setSelectedGuestId(id);
+                      if (id) {
+                        setCustomGuestName('');
+                        setCustomGuestBio('');
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Or custom guest */}
+                {!selectedGuestId && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or enter guest details
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="guestName">Guest Name</Label>
+                      <Input
+                        id="guestName"
+                        value={customGuestName}
+                        onChange={(e) => setCustomGuestName(e.target.value)}
+                        placeholder="Enter guest name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="guestBio">Guest Background (optional)</Label>
+                      <Textarea
+                        id="guestBio"
+                        value={customGuestBio}
+                        onChange={(e) => setCustomGuestBio(e.target.value)}
+                        placeholder="Brief background about the guest..."
+                        rows={3}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Topic */}
+                <div className="space-y-2">
+                  <Label htmlFor="topic">Discussion Topic (optional)</Label>
+                  <Input
+                    id="topic"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="e.g., Executive travel security"
+                  />
+                </div>
+
+                {/* Interview Mode Selection */}
+                <div className="space-y-2">
+                  <Label>Recording Mode</Label>
+                  <Tabs value={interviewMode} onValueChange={(v) => setInterviewMode(v as 'audio' | 'video')}>
                     <TabsList className="w-full">
-                      <TabsTrigger value="human" className="flex-1 gap-2">
-                        <Users className="h-4 w-4" />
-                        Human Guest
+                      <TabsTrigger value="video" className="flex-1 gap-2">
+                        <Video className="h-4 w-4" />
+                        Video (YouTube)
                       </TabsTrigger>
-                      <TabsTrigger value="agent" className="flex-1 gap-2">
-                        <Bot className="h-4 w-4" />
-                        Fortress Agent
+                      <TabsTrigger value="audio" className="flex-1 gap-2">
+                        <Mic className="h-4 w-4" />
+                        Audio Only
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
+                  <p className="text-xs text-muted-foreground">
+                    {interviewMode === 'video' 
+                      ? 'Split-screen recording with Aegis avatar + your webcam'
+                      : 'Audio-only interview with live transcription'}
+                  </p>
                 </div>
-
-                {guestType === 'human' ? (
-                  <>
-                    {/* Guest Selection */}
-                    <div className="space-y-2">
-                      <Label>Select Guest</Label>
-                      <GuestSelector
-                        selectedGuestId={selectedGuestId}
-                        onGuestSelect={(id) => {
-                          setSelectedGuestId(id);
-                          if (id) {
-                            setCustomGuestName('');
-                            setCustomGuestBio('');
-                          }
-                        }}
-                      />
-                    </div>
-
-                    {/* Or custom guest */}
-                    {!selectedGuestId && (
-                      <>
-                        <div className="relative">
-                          <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t" />
-                          </div>
-                          <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">
-                              Or enter guest details
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="guestName">Guest Name</Label>
-                          <Input
-                            id="guestName"
-                            value={customGuestName}
-                            onChange={(e) => setCustomGuestName(e.target.value)}
-                            placeholder="Enter guest name"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="guestBio">Guest Background (optional)</Label>
-                          <Textarea
-                            id="guestBio"
-                            value={customGuestBio}
-                            onChange={(e) => setCustomGuestBio(e.target.value)}
-                            placeholder="Brief background about the guest..."
-                            rows={3}
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Topic */}
-                    <div className="space-y-2">
-                      <Label htmlFor="topic">Discussion Topic (optional)</Label>
-                      <Input
-                        id="topic"
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        placeholder="e.g., Executive travel security"
-                      />
-                    </div>
-
-                    {/* Interview Mode Selection */}
-                    <div className="space-y-2">
-                      <Label>Recording Mode</Label>
-                      <Tabs value={interviewMode} onValueChange={(v) => setInterviewMode(v as 'audio' | 'video')}>
-                        <TabsList className="w-full">
-                          <TabsTrigger value="video" className="flex-1 gap-2">
-                            <Video className="h-4 w-4" />
-                            Video (YouTube)
-                          </TabsTrigger>
-                          <TabsTrigger value="audio" className="flex-1 gap-2">
-                            <Mic className="h-4 w-4" />
-                            Audio Only
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
-                      <p className="text-xs text-muted-foreground">
-                        {interviewMode === 'video' 
-                          ? 'Split-screen recording with Aegis avatar + your webcam'
-                          : 'Audio-only interview with live transcription'}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Fortress Agent Selection */}
-                    <div className="space-y-2">
-                      <Label>Select Fortress Agent</Label>
-                      <FortressAgentSelector
-                        selectedAgent={selectedAgent}
-                        onAgentSelect={setSelectedAgent}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      AI-to-AI interview: Aegis will interview the selected agent about their expertise
-                    </p>
-                  </>
-                )}
 
                 {!showInterview && (
                   <Button
@@ -362,29 +270,15 @@ export default function Interview() {
                     className="w-full gap-2"
                     size="lg"
                   >
-                    {guestType === 'agent' ? (
-                      <>
-                        <Bot className="h-4 w-4" />
-                        Start Agent Interview
-                      </>
-                    ) : interviewMode === 'video' ? (
-                      <>
-                        <Video className="h-4 w-4" />
-                        Start Video Interview
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="h-4 w-4" />
-                        Start Live Interview
-                      </>
-                    )}
+                    {interviewMode === 'video' ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    Start {interviewMode === 'video' ? 'Video' : 'Live'} Interview
                   </Button>
                 )}
               </CardContent>
             </Card>
 
             {/* Completed Transcript Actions */}
-            {hasCompletedTranscript && (
+            {completedTranscript && completedTranscript.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -392,7 +286,7 @@ export default function Interview() {
                     Interview Recording
                   </CardTitle>
                   <CardDescription>
-                    {transcriptCount} exchanges captured
+                    {completedTranscript.length} exchanges captured
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -415,12 +309,7 @@ export default function Interview() {
           {/* Interview Panel */}
           <div className="lg:col-span-2 min-h-[600px]">
             {showInterview ? (
-              guestType === 'agent' && selectedAgent ? (
-                <AgentInterviewStudio
-                  agent={selectedAgent}
-                  onComplete={handleAgentInterviewComplete}
-                />
-              ) : interviewMode === 'video' ? (
+              interviewMode === 'video' ? (
                 <VideoRealtimeInterview
                   guestName={guestName}
                   guestBio={guestBio}
@@ -438,25 +327,12 @@ export default function Interview() {
             ) : (
               <Card className="h-full flex items-center justify-center">
                 <CardContent className="text-center py-12">
-                  {guestType === 'agent' ? (
-                    <>
-                      <Bot className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <h3 className="text-xl font-semibold mb-2">AI-to-AI Interview</h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        Select a Fortress agent on the left. Aegis will interview them 
-                        in real-time to extract their specialized knowledge.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <h3 className="text-xl font-semibold mb-2">Ready to Interview</h3>
-                      <p className="text-muted-foreground max-w-md mx-auto">
-                        Configure your guest and topic on the left, then start the live interview.
-                        Aegis will host the conversation in real-time.
-                      </p>
-                    </>
-                  )}
+                  <Mic className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                  <h3 className="text-xl font-semibold mb-2">Ready to Interview</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Configure your guest and topic on the left, then start the live interview.
+                    Aegis will host the conversation in real-time.
+                  </p>
                 </CardContent>
               </Card>
             )}
