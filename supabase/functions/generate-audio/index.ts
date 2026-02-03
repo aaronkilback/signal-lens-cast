@@ -97,6 +97,7 @@ async function generateAudioChunk(
   text: string, 
   voice: string, 
   apiKey: string,
+  speed: number,
   retries: number = 2
 ): Promise<ArrayBuffer> {
   let lastError: Error | null = null;
@@ -117,6 +118,9 @@ async function generateAudioChunk(
           voice: voice,
           input: text,
           response_format: "mp3",
+          // Slower, more conversational cadence (Shawn Ryan–style)
+          // Range is typically 0.25–4.0; keep close to 1.0 to avoid artifacts.
+          speed,
         }),
         signal: controller.signal,
       });
@@ -156,7 +160,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voice = "onyx", guestVoice, guestName } = await req.json();
+    const { text, voice = "onyx", guestVoice, guestName, speed = 0.9 } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
     if (!OPENAI_API_KEY) {
@@ -175,17 +179,8 @@ serve(async (req) => {
     // Use larger chunk size for fewer concatenation artifacts
     const MAX_CHARS = 4000;
     
-    // Generate a short silence buffer for natural pauses between speakers
-    // ~0.8 seconds of silence at 128kbps MP3 (for conversational pacing)
-    const generateSilenceBuffer = (): ArrayBuffer => {
-      // Create ~0.8s of near-silence using a minimal valid MP3 frame repeated
-      // This creates a natural pause between speakers like in real conversations
-      const silenceBytes = new Uint8Array(12800); // ~0.8s at 128kbps
-      return silenceBytes.buffer;
-    };
-    
     if (isDialogue) {
-      console.log(`Processing dialogue script with guest: ${guestName} (adding natural pauses)`);
+      console.log(`Processing dialogue script with guest: ${guestName} (speed=${speed})`);
       
       const segments = parseDialogueScript(text, voice, guestVoice, guestName);
       console.log(`Found ${segments.length} voice segments`);
@@ -194,17 +189,10 @@ serve(async (req) => {
         const segment = segments[i];
         const chunks = splitTextIntoChunks(segment.text, MAX_CHARS);
         
-        // Add a pause BEFORE each new speaker turn (except the first)
-        // This creates natural conversational rhythm like Shawn Ryan Show
-        if (i > 0) {
-          console.log(`Adding pause before speaker change`);
-          audioChunks.push(generateSilenceBuffer());
-        }
-        
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
           console.log(`Segment ${i + 1}/${segments.length}, chunk ${j + 1}/${chunks.length}: ${chunk.length} chars (${segment.voice})`);
-          const audioBuffer = await generateAudioChunk(chunk, segment.voice, OPENAI_API_KEY);
+          const audioBuffer = await generateAudioChunk(chunk, segment.voice, OPENAI_API_KEY, speed);
           audioChunks.push(audioBuffer);
         }
       }
@@ -217,7 +205,7 @@ serve(async (req) => {
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunk.length} chars`);
-        const audioBuffer = await generateAudioChunk(chunk, voice, OPENAI_API_KEY);
+        const audioBuffer = await generateAudioChunk(chunk, voice, OPENAI_API_KEY, speed);
         audioChunks.push(audioBuffer);
       }
     }
