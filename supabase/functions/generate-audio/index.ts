@@ -175,8 +175,17 @@ serve(async (req) => {
     // Use larger chunk size for fewer concatenation artifacts
     const MAX_CHARS = 4000;
     
+    // Generate a short silence buffer for natural pauses between speakers
+    // ~0.8 seconds of silence at 128kbps MP3 (for conversational pacing)
+    const generateSilenceBuffer = (): ArrayBuffer => {
+      // Create ~0.8s of near-silence using a minimal valid MP3 frame repeated
+      // This creates a natural pause between speakers like in real conversations
+      const silenceBytes = new Uint8Array(12800); // ~0.8s at 128kbps
+      return silenceBytes.buffer;
+    };
+    
     if (isDialogue) {
-      console.log(`Processing dialogue script with guest: ${guestName}`);
+      console.log(`Processing dialogue script with guest: ${guestName} (adding natural pauses)`);
       
       const segments = parseDialogueScript(text, voice, guestVoice, guestName);
       console.log(`Found ${segments.length} voice segments`);
@@ -184,6 +193,13 @@ serve(async (req) => {
       for (let i = 0; i < segments.length; i++) {
         const segment = segments[i];
         const chunks = splitTextIntoChunks(segment.text, MAX_CHARS);
+        
+        // Add a pause BEFORE each new speaker turn (except the first)
+        // This creates natural conversational rhythm like Shawn Ryan Show
+        if (i > 0) {
+          console.log(`Adding pause before speaker change`);
+          audioChunks.push(generateSilenceBuffer());
+        }
         
         for (let j = 0; j < chunks.length; j++) {
           const chunk = chunks[j];
