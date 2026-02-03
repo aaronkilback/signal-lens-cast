@@ -264,16 +264,20 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
         if (persona === 'aegis') {
           aegisTextRef.current = '';
           setAegisText('');
-          // After Aegis speaks, trigger agent response
+          // After Aegis speaks, give the guest time to "think" - natural conversation pause
           if (finalText.trim()) {
-            setTimeout(() => sendToAgent(finalText), 500);
+            // 1.5-3 second pause for natural pacing (like Shawn Ryan Show)
+            const thinkingDelay = 1500 + Math.random() * 1500;
+            setTimeout(() => sendToAgent(finalText), thinkingDelay);
           }
         } else {
           agentTextRef.current = '';
           setAgentText('');
-          // After agent speaks, trigger Aegis follow-up
+          // After agent speaks, Aegis takes a moment to process - thoughtful host pause
           if (finalText.trim()) {
-            setTimeout(() => sendToAegis(finalText), 500);
+            // 2-4 second pause for Aegis to "consider" the response
+            const thinkingDelay = 2000 + Math.random() * 2000;
+            setTimeout(() => sendToAegis(finalText), thinkingDelay);
           }
         }
         setCurrentSpeaker(null);
