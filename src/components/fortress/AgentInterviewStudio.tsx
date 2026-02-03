@@ -5,10 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FortressAgent } from '@/hooks/useFortressAgents';
 import { useAuth } from '@/hooks/useAuth';
+import { MarketingAssets } from '@/components/MarketingAssets';
 import { Bot, Mic, Radio, Square, Volume2, Download, Loader2, Edit3, Check, Save, FileText } from 'lucide-react';
 import aegisAvatar from '@/assets/aegis-avatar.png';
 
@@ -37,6 +40,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
   const [savedEpisodeId, setSavedEpisodeId] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [interviewTopic, setInterviewTopic] = useState('');
   const audioRef = useRef<HTMLAudioElement>(null);
   
   // Script editing state (like Generate page)
@@ -471,12 +475,14 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
         console.warn('Could not extract metadata:', metaError);
       }
 
-      const episodeTitle = `Fortress Interview: ${agent.codename} - ${agent.name}`;
+      const episodeTitle = interviewTopic 
+        ? `Fortress Interview: ${interviewTopic}`
+        : `Fortress Interview: ${agent.codename} - ${agent.name}`;
       
       const episodeData = {
         user_id: user.id,
         title: episodeTitle,
-        topic: `AI-to-AI interview with ${agent.codename} on ${agent.expertise[0] || 'specialized intelligence'}`,
+        topic: getEpisodeTopic(),
         target_audience: 'executives',
         risk_domains: agent.expertise.slice(0, 3),
         content_length: Math.ceil(elapsedTime / 60),
@@ -639,6 +645,35 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
     });
   };
 
+  const downloadScript = () => {
+    const scriptToDownload = editableScriptRef.current || getScriptFromTranscript();
+    if (!scriptToDownload) return;
+
+    const topicSlug = interviewTopic 
+      ? interviewTopic.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase()
+      : agent.codename.toLowerCase();
+    const filename = `fortified-${topicSlug}-${new Date().toISOString().split('T')[0]}.txt`;
+    const blob = new Blob([scriptToDownload], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Script Downloaded',
+      description: `Saved as ${filename}`,
+    });
+  };
+
+  // Get the topic for display/saving
+  const getEpisodeTopic = () => {
+    return interviewTopic || `AI-to-AI interview with ${agent.codename} on ${agent.expertise[0] || 'specialized intelligence'}`;
+  };
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-3">
@@ -776,9 +811,26 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
                   </div>
                 ))}
                 {transcript.length === 0 && status === 'idle' && !editableScript && (
-                  <div className="text-center py-12 text-muted-foreground">
+                  <div className="text-center py-8 text-muted-foreground space-y-4">
                     <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p>Start the interview to hear Aegis and {agent.codename} discuss {agent.expertise[0]}</p>
+                    
+                    {/* Topic Input */}
+                    <div className="text-left max-w-md mx-auto space-y-2">
+                      <Label htmlFor="interview-topic" className="text-foreground">
+                        Interview Topic (optional)
+                      </Label>
+                      <Input
+                        id="interview-topic"
+                        placeholder={`e.g., ${agent.expertise[0] || 'Security best practices'} for executives`}
+                        value={interviewTopic}
+                        onChange={(e) => setInterviewTopic(e.target.value)}
+                        className="bg-background"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Guide the conversation toward a specific topic or leave empty for a general discussion.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -795,12 +847,15 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
             </Button>
           )}
           {status === 'idle' && editableScript && (
-            <div className="flex flex-col gap-2 w-full">
-              {/* Top row: Save + Generate Audio */}
+            <div className="flex flex-col gap-3 w-full">
+              {/* Top row: Save + Download Script + Generate Audio */}
               <div className="flex gap-2">
                 <Button onClick={handleSaveEpisode} variant="outline" className="flex-1 gap-2">
                   <Save className="h-4 w-4" />
-                  {savedEpisodeId ? 'Update Episode' : 'Save as Episode'}
+                  {savedEpisodeId ? 'Update' : 'Save'}
+                </Button>
+                <Button onClick={downloadScript} variant="outline" className="gap-2" title="Download Script">
+                  <FileText className="h-4 w-4" />
                 </Button>
                 <Button 
                   onClick={generateAudio} 
@@ -863,6 +918,17 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
                 </div>
               )}
               
+              {/* Marketing Assets - show after saving */}
+              {savedEpisodeId && (
+                <div className="border-t pt-4 mt-2">
+                  <MarketingAssets
+                    script={editableScriptRef.current || getScriptFromTranscript()}
+                    topic={getEpisodeTopic()}
+                    episodeId={savedEpisodeId}
+                  />
+                </div>
+              )}
+              
               {/* New Interview button */}
               <Button 
                 onClick={() => {
@@ -872,6 +938,7 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
                   setAudioBlob(null);
                   setSavedEpisodeId(null);
                   setElapsedTime(0);
+                  setInterviewTopic('');
                   startInterview();
                 }} 
                 variant="ghost" 
