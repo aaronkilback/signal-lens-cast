@@ -39,7 +39,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar",
+        model: "sonar-pro",
         messages: [
           {
             role: "system",
@@ -101,7 +101,7 @@ Focus on factual, verifiable information. This is for a podcast interview simula
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-3-pro-preview",
         messages: [
           {
             role: "system",
