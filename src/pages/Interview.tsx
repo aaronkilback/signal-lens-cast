@@ -9,14 +9,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RealtimeInterview } from '@/components/RealtimeInterview';
 import { VideoRealtimeInterview } from '@/components/VideoRealtimeInterview';
 import { GuestSelector } from '@/components/GuestSelector';
-import { FortressAgentSelector } from '@/components/fortress/FortressAgentSelector';
+import { FortressSignalSelector } from '@/components/fortress/FortressSignalSelector';
 import { AgentInterviewStudio } from '@/components/fortress/AgentInterviewStudio';
 import { TranscriptEntry } from '@/hooks/useRealtimeInterview';
+import { FortressSignal } from '@/hooks/useFortressSignals';
 import { FortressAgent } from '@/hooks/useFortressAgents';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, FileText, Users, Video, Bot } from 'lucide-react';
+import { Mic, FileText, Users, Video, Bot, AlertTriangle } from 'lucide-react';
 import { VoiceOption } from '@/lib/aegis-types';
 
 interface GuestProfile {
@@ -65,6 +66,7 @@ export default function Interview() {
   
   const [guestType, setGuestType] = useState<'human' | 'agent'>(initialState.guestType);
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialState.selectedGuestId);
+  const [selectedSignal, setSelectedSignal] = useState<FortressSignal | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<FortressAgent | null>(null);
   const [selectedGuest, setSelectedGuest] = useState<GuestProfile | null>(null);
   const [topic, setTopic] = useState(initialState.topic);
@@ -129,14 +131,23 @@ export default function Interview() {
         return;
       }
     } else {
-      if (!selectedAgent) {
+      if (!selectedSignal) {
         toast({
-          title: 'Agent Required',
-          description: 'Please select a Fortress agent to interview.',
+          title: 'Signal Required',
+          description: 'Please select a recent signal to discuss.',
           variant: 'destructive',
         });
         return;
       }
+      // Build a synthetic agent from the signal for the interview studio
+      setSelectedAgent({
+        id: selectedSignal.id,
+        name: selectedSignal.category,
+        codename: `SIGNAL-${selectedSignal.severity?.toUpperCase() || 'INTEL'}`,
+        expertise: selectedSignal.expertise,
+        description: selectedSignal.normalized_text || selectedSignal.description,
+        systemPrompt: `You are a threat intelligence analyst briefing on the following signal:\n\n"${selectedSignal.normalized_text}"\n\nSeverity: ${selectedSignal.severity}\nCategory: ${selectedSignal.category}\nDetected: ${selectedSignal.detected_at}\n\nProvide detailed analysis, context, and actionable recommendations about this signal.`,
+      });
     }
     setShowInterview(true);
     setCompletedTranscript(null);
@@ -246,8 +257,8 @@ export default function Interview() {
                         Human Guest
                       </TabsTrigger>
                       <TabsTrigger value="agent" className="flex-1 gap-2">
-                        <Bot className="h-4 w-4" />
-                        Fortress Agent
+                        <AlertTriangle className="h-4 w-4" />
+                        Fortress Signal
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
@@ -342,16 +353,16 @@ export default function Interview() {
                   </>
                 ) : (
                   <>
-                    {/* Fortress Agent Selection */}
+                    {/* Fortress Signal Selection */}
                     <div className="space-y-2">
-                      <Label>Select Fortress Agent</Label>
-                      <FortressAgentSelector
-                        selectedAgent={selectedAgent}
-                        onAgentSelect={setSelectedAgent}
+                      <Label>Select Recent Signal</Label>
+                      <FortressSignalSelector
+                        selectedSignal={selectedSignal}
+                        onSignalSelect={setSelectedSignal}
                       />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      AI-to-AI interview: Aegis will interview the selected agent about their expertise
+                      AI-to-AI interview: Aegis will analyze the selected signal with a threat intelligence expert
                     </p>
                   </>
                 )}
@@ -364,8 +375,8 @@ export default function Interview() {
                   >
                     {guestType === 'agent' ? (
                       <>
-                        <Bot className="h-4 w-4" />
-                        Start Agent Interview
+                        <AlertTriangle className="h-4 w-4" />
+                        Analyze Signal
                       </>
                     ) : interviewMode === 'video' ? (
                       <>
@@ -440,11 +451,11 @@ export default function Interview() {
                 <CardContent className="text-center py-12">
                   {guestType === 'agent' ? (
                     <>
-                      <Bot className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-                      <h3 className="text-xl font-semibold mb-2">AI-to-AI Interview</h3>
+                      <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                      <h3 className="text-xl font-semibold mb-2">Signal Intelligence Interview</h3>
                       <p className="text-muted-foreground max-w-md mx-auto">
-                        Select a Fortress agent on the left. Aegis will interview them 
-                        in real-time to extract their specialized knowledge.
+                        Select a recent signal on the left. Aegis will analyze it 
+                        in real-time with an AI threat intelligence expert.
                       </p>
                     </>
                   ) : (
