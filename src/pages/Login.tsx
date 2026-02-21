@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -120,6 +121,29 @@ export default function Login() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) {
+                    toast({ title: 'Enter your email first', variant: 'destructive' });
+                    return;
+                  }
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  if (error) {
+                    toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                  } else {
+                    toast({ title: 'Reset link sent', description: 'Check your email for the password reset link.' });
+                  }
+                }}
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
