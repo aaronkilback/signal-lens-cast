@@ -470,24 +470,26 @@ Keep it natural. Let the conversation breathe. Don't script it too tightly.`;
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "sonar",
+                model: "sonar-pro",
                 messages: [
                   { 
                     role: "system", 
-                    content: `You are a research assistant analyzing ${mediaType}s. Provide detailed, accurate information about the ${mediaType}, including:
-- Author/creator background and credentials
-- Core themes, arguments, and key ideas
-- Notable quotes or memorable scenes/moments
-- Critical reception and impact
-- Lessons relevant to security, protection, leadership, and personal/family safety
-Be thorough and factual. Include specific examples, chapter/scene references when possible.` 
+                    content: `You are a deep research assistant analyzing ${mediaType}s with exceptional thoroughness. Provide rich, detailed, multi-layered information about the ${mediaType}, including:
+- Author/creator background, credentials, and what drove them to create this work
+- Core themes, arguments, and key ideas with SPECIFIC examples (chapter numbers, scene timestamps, page references)
+- Direct notable quotes with attribution (minimum 3-5 verbatim quotes)
+- Critical reception, cultural impact, and controversies
+- Lessons relevant to security, protection, leadership, resilience, and personal/family safety
+- Lesser-known insights that most surface-level reviews miss
+- Connections to real-world incidents or current events
+Be exhaustive and factual. Prioritize depth over breadth. Include specific examples, chapter/scene references, and direct quotes whenever possible.` 
                   },
                   { 
                     role: "user", 
                     content: `Research "${config.deepDiveTitle}". Provide comprehensive information about this ${mediaType}, focusing on its key themes, lessons, and insights that would be relevant to executives, high-net-worth individuals, and those interested in security/protection.` 
                   }
                 ],
-                max_tokens: 1500,
+                max_tokens: 3000,
               }),
             });
             
@@ -536,25 +538,30 @@ DEEP DIVE INSTRUCTIONS:
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "sonar",
+                model: "sonar-pro",
                 messages: [
                   { 
                     role: "system", 
-                    content: `You are a research assistant finding REAL PEOPLE and REAL STORIES. 
+                    content: `You are an elite investigative research assistant finding REAL PEOPLE and REAL STORIES with maximum depth and detail.
                     
 Your job is to find:
 1. REAL executives, CEOs, founders, public figures, or notable individuals connected to this topic
 2. REAL incidents with verified names, dates, companies, and outcomes
 3. REAL interviews, quotes, or documented experiences from real people
+4. Lesser-known but verified cases that would surprise even well-informed listeners
+5. The HUMAN DETAILS that make stories compelling (what they said, how they reacted, what changed)
 
 CRITICAL: Only include verifiable real people and real events. Include:
 - Full names of real people
 - Their actual roles/companies
 - Specific dates and locations
-- Direct quotes if available
+- Direct quotes (minimum 2-3 verbatim quotes per person)
 - What actually happened (verified facts only)
+- The emotional dimension: how did they feel, what did they say publicly about it
+- The aftermath: what changed as a result
 
-Do NOT include fictional or composite examples. Only real, documented cases.` 
+Do NOT include fictional or composite examples. Only real, documented cases.
+Prioritize stories with rich human detail over dry factual summaries.` 
                   },
                   { 
                     role: "user", 
@@ -563,7 +570,7 @@ Do NOT include fictional or composite examples. Only real, documented cases.`
 Include specific names, companies, dates, and what actually happened. Only include people and events that are publicly documented and verifiable.` 
                   }
                 ],
-                max_tokens: 1000,
+                max_tokens: 2000,
               }),
             });
             
@@ -1020,7 +1027,7 @@ Before each sentence, verify:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-3-pro-preview",
         messages: [
           { role: "system", content: AEGIS_SYSTEM_PROMPT + structuralVariation },
           { role: "user", content: userPrompt },
