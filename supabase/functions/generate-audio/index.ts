@@ -160,7 +160,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voice = "onyx", guestVoice, guestName, speed = 0.9 } = await req.json();
+    const { text, voice = "onyx", guestVoice, guestName, speed = 1.0 } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
     if (!OPENAI_API_KEY) {
