@@ -8,11 +8,16 @@ const corsHeaders = {
 const ASSET_PROMPTS: Record<string, string> = {
   show_notes: `Generate professional podcast show notes for the following episode script. Include:
 - A compelling 2-3 sentence episode description
-- 5-7 key takeaways as bullet points
+- 5-7 key takeaways as bullet points using "•" (bullet character), NOT asterisks or markdown
 - Links placeholder for resources mentioned
 - Guest info placeholder if applicable
 
-Format as clean, readable text ready to paste into Buzzsprout or podcast hosting.
+IMPORTANT FORMATTING RULES:
+- Do NOT use asterisks (*) anywhere in the output
+- Do NOT use markdown formatting (no **, no *, no #, no _)
+- Use plain text only with bullet characters (•) for lists
+- Use ALL CAPS or line breaks for emphasis instead of markdown
+- Format as clean, readable plain text ready to paste into Buzzsprout or podcast hosting
 Keep it concise—no fluff. Every word earns its place.`,
 
   chapter_markers: `Create chapter markers with timestamps for the following podcast script. Estimate timestamps based on a natural speaking pace of 150 words per minute.
