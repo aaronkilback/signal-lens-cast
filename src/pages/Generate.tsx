@@ -202,6 +202,7 @@ export default function Generate() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isProducing, setIsProducing] = useState(false);
   const [productionProgress, setProductionProgress] = useState<string[]>([]);
+  const [assetsRefreshKey, setAssetsRefreshKey] = useState(0);
   const [toneValue, setToneValue] = useState(initialState.toneValue);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [currentEpisodeId, setCurrentEpisodeId] = useState<string | null>(initialState.loadedEpisodeId || null);
@@ -808,6 +809,9 @@ export default function Generate() {
       const succeeded = [audioResult, ...assetResults].filter(r => r.status === 'fulfilled').length;
       const total = 1 + assetTypes.length;
 
+      // Force MarketingAssets to re-fetch from DB now that all assets are saved
+      setAssetsRefreshKey(k => k + 1);
+
       toast({
         title: 'Episode Produced',
         description: `${succeeded}/${total} assets generated. Your episode is production-ready.`,
@@ -1218,8 +1222,9 @@ export default function Generate() {
             )}
 
             {/* Marketing Assets Section */}
-            <MarketingAssets 
-              script={isEditing ? editableScript : generatedScript} 
+            <MarketingAssets
+              key={`${currentEpisodeId}-${assetsRefreshKey}`}
+              script={isEditing ? editableScript : generatedScript}
               topic={config.topic}
               episodeId={currentEpisodeId || undefined}
             />
