@@ -13,7 +13,7 @@ serve(async (req) => {
   try {
     const { name } = await req.json();
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
     if (!name) {
       return new Response(
@@ -74,7 +74,7 @@ Focus on factual, verifiable information. This is for a podcast interview simula
     console.log("Research complete, structuring data...");
 
     // Step 2: Use AI to structure the research into a profile
-    if (!LOVABLE_API_KEY) {
+    if (!GEMINI_API_KEY) {
       // Return raw research if no structuring API available
       return new Response(
         JSON.stringify({
@@ -94,14 +94,14 @@ Focus on factual, verifiable information. This is for a podcast interview simula
       );
     }
 
-    const structureResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const structureResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${GEMINI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-pro-preview",
+        model: "gemini-2.5-flash",
         messages: [
           {
             role: "system",

@@ -1,8 +1,10 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Guest invitations table
 CREATE TABLE public.guest_invitations (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   host_user_id UUID NOT NULL,
-  invite_token TEXT NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  invite_token TEXT NOT NULL UNIQUE DEFAULT replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
   guest_email TEXT,
   guest_name TEXT NOT NULL,
   topic TEXT,
