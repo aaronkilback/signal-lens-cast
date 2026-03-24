@@ -806,16 +806,26 @@ export default function Generate() {
         ),
       ]);
 
-      const succeeded = [audioResult, ...assetResults].filter(r => r.status === 'fulfilled').length;
-      const total = 1 + assetTypes.length;
-
       // Force MarketingAssets to re-fetch from DB now that all assets are saved
       setAssetsRefreshKey(k => k + 1);
 
-      toast({
-        title: 'Episode Produced',
-        description: `${succeeded}/${total} assets generated. Your episode is production-ready.`,
-      });
+      const audioOk = audioResult.status === 'fulfilled';
+      const assetsOk = assetResults.filter(r => r.status === 'fulfilled').length;
+
+      if (!audioOk) {
+        const reason = audioResult.status === 'rejected' ? (audioResult.reason?.message || 'unknown') : '';
+        addProgress(`Audio failed: ${reason}. Use the Generate Audio button manually.`);
+        toast({
+          title: 'Audio Failed',
+          description: 'All marketing assets were saved. Generate audio separately using the speaker icon.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Episode Produced',
+          description: `Audio + ${assetsOk}/${assetTypes.length} assets ready. Scroll up to play and download audio.`,
+        });
+      }
     } catch (error) {
       console.error('Production error:', error);
       toast({
@@ -1179,8 +1189,19 @@ export default function Generate() {
               </CardHeader>
               <CardContent>
                 {audioUrl && (
-                  <div className="mb-4 p-4 bg-accent rounded-lg">
-                    {/* key forces a remount so the browser reloads the updated source */}
+                  <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Volume2 className="h-4 w-4 text-primary" />
+                        <span>Episode Audio — Ready for Buzzsprout</span>
+                      </div>
+                      {audioBlob && (
+                        <Button size="sm" onClick={handleDownloadAudio} className="gap-2">
+                          <Download className="h-4 w-4" />
+                          Download MP3
+                        </Button>
+                      )}
+                    </div>
                     <audio key={audioUrl} controls className="w-full">
                       <source src={audioUrl} type="audio/mpeg" />
                     </audio>
