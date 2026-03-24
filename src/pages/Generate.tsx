@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save, Plus } from 'lucide-react';
+import { Mic, Loader2, Volume2, Download, FileText, Edit3, Check, Save, Plus, Rocket } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarketingAssets } from '@/components/MarketingAssets';
+import { IntelligenceSuggestions } from '@/components/IntelligenceSuggestions';
 import { EpisodeFeedback } from '@/components/EpisodeFeedback';
 import { GuestSelector } from '@/components/GuestSelector';
 import { Button } from '@/components/ui/button';
@@ -199,6 +200,8 @@ export default function Generate() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [isProducing, setIsProducing] = useState(false);
+  const [productionProgress, setProductionProgress] = useState<string[]>([]);
   const [toneValue, setToneValue] = useState(initialState.toneValue);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [currentEpisodeId, setCurrentEpisodeId] = useState<string | null>(initialState.loadedEpisodeId || null);
@@ -699,6 +702,129 @@ export default function Generate() {
     }
   };
 
+  const handleProduceEpisode = async () => {
+    const scriptToUse = isEditing ? editableScript : generatedScript;
+    if (!scriptToUse || !user) {
+      toast({
+        title: 'Script Required',
+        description: 'Generate a script first before full production.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProducing(true);
+    setProductionProgress([]);
+
+    const addProgress = (msg: string) => setProductionProgress(prev => [...prev, msg]);
+
+    try {
+      // Step 1: Save the episode to get an ID
+      addProgress('Saving episode...');
+      let episodeId = currentEpisodeId;
+
+      if (!episodeId) {
+        let metadata = { key_stories: [] as string[], people_mentioned: [] as string[], themes: [] as string[], episode_summary: config.topic };
+        try {
+          const metaRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+            body: JSON.stringify({ script: scriptToUse, topic: config.topic }),
+          });
+          if (metaRes.ok) metadata = await metaRes.json();
+        } catch { /* continue */ }
+
+        const { data, error } = await supabase.from('episodes').insert({
+          user_id: user.id,
+          title: config.topic.slice(0, 100),
+          topic: config.topic,
+          target_audience: config.targetAudience,
+          risk_domains: config.lifeDomains,
+          content_length: config.contentLength,
+          tone_intensity: config.toneIntensity,
+          output_mode: config.outputMode,
+          script_content: scriptToUse,
+          status: 'completed',
+          ...metadata,
+          updated_at: new Date().toISOString(),
+        }).select('id').single();
+
+        if (error) throw error;
+        episodeId = data.id;
+        setCurrentEpisodeId(data.id);
+      }
+
+      addProgress('Episode saved. Launching parallel production...');
+
+      // Step 2: Fire audio + all 5 marketing assets in parallel
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const AUTH = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
+
+      const audioRequest = {
+        text: scriptToUse,
+        voice: config.voice || 'onyx',
+        ...(selectedGuest ? { guestVoice: selectedGuest.voiceId, guestName: selectedGuest.displayName } : {}),
+      };
+
+      const assetTypes = ['show_notes', 'chapter_markers', 'social_posts', 'blog_post', 'transcript'] as const;
+
+      const [audioResult, ...assetResults] = await Promise.allSettled([
+        fetch(`${SUPABASE_URL}/functions/v1/generate-audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: AUTH },
+          body: JSON.stringify(audioRequest),
+        }).then(async r => {
+          if (!r.ok) throw new Error('Audio failed');
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+          setAudioBlob(blob);
+          setAudioUrl(url);
+          addProgress('Audio ready.');
+          return url;
+        }),
+        ...assetTypes.map(assetType =>
+          fetch(`${SUPABASE_URL}/functions/v1/generate-marketing-assets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: AUTH },
+            body: JSON.stringify({ script: scriptToUse, topic: config.topic, assetType }),
+          }).then(async r => {
+            if (!r.ok) throw new Error(`${assetType} failed`);
+            const data = await r.json();
+            // Save to DB
+            if (episodeId) {
+              await supabase.from('marketing_assets').upsert({
+                episode_id: episodeId,
+                user_id: user.id,
+                asset_type: assetType,
+                content: data.content,
+              }, { onConflict: 'episode_id,asset_type' });
+            }
+            addProgress(`${assetType.replace(/_/g, ' ')} ready.`);
+            return data.content;
+          })
+        ),
+      ]);
+
+      const succeeded = [audioResult, ...assetResults].filter(r => r.status === 'fulfilled').length;
+      const total = 1 + assetTypes.length;
+
+      toast({
+        title: 'Episode Produced',
+        description: `${succeeded}/${total} assets generated. Your episode is production-ready.`,
+      });
+    } catch (error) {
+      console.error('Production error:', error);
+      toast({
+        title: 'Production Error',
+        description: error instanceof Error ? error.message : 'An error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProducing(false);
+      setTimeout(() => setProductionProgress([]), 5000);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="container py-8 animate-fade-in">
@@ -742,6 +868,15 @@ export default function Generate() {
                 <CardDescription>Define the subject matter and target recipients</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <IntelligenceSuggestions
+                  onSelectTopic={(topic, domains) => {
+                    setConfig({
+                      ...config,
+                      topic,
+                      ...(domains && domains.length > 0 ? { lifeDomains: domains as any } : {}),
+                    });
+                  }}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="topic">Topic</Label>
                   <Textarea
@@ -933,7 +1068,7 @@ export default function Generate() {
 
             <Button
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGenerating || isProducing}
               className="w-full h-12 text-lg"
             >
               {isGenerating ? (
@@ -948,6 +1083,38 @@ export default function Generate() {
                 </>
               )}
             </Button>
+
+            {(generatedScript || editableScript) && (
+              <div className="space-y-2">
+                <Button
+                  onClick={handleProduceEpisode}
+                  disabled={isProducing || isGenerating}
+                  variant="default"
+                  className="w-full h-12 text-base bg-primary/90 hover:bg-primary"
+                >
+                  {isProducing ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Producing...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="mr-2 h-5 w-5" />
+                      Produce This Episode
+                    </>
+                  )}
+                </Button>
+                {productionProgress.length > 0 && (
+                  <div className="rounded-md bg-muted/50 p-3 space-y-1">
+                    {productionProgress.map((msg, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">
+                        {i === productionProgress.length - 1 ? '→ ' : '✓ '}{msg}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Output Panel */}

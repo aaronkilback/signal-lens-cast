@@ -782,9 +782,69 @@ ${overusedThemes.length > 0 ? overusedThemes.join(", ") : "None yet"}
 TOPICS ALREADY COVERED (approach differently if revisiting):
 ${coveredTopics.slice(0, 10).join(", ")}
 
+=== SERIALIZED NARRATIVE ARCS ===
+${(() => {
+  // Detect recurring people across episodes (potential ongoing arc characters)
+  const allPeopleMentioned = episodes.flatMap((ep: any) => ep.people_mentioned || []);
+  const personFrequency: Record<string, number> = {};
+  allPeopleMentioned.forEach((name: string) => {
+    personFrequency[name] = (personFrequency[name] || 0) + 1;
+  });
+  const recurringCharacters = Object.entries(personFrequency)
+    .filter(([_, count]) => count >= 2)
+    .sort(([_, a], [__, b]) => (b as number) - (a as number))
+    .slice(0, 5)
+    .map(([name, count]) => {
+      const episodesWithPerson = episodes
+        .filter((ep: any) => ep.people_mentioned?.includes(name))
+        .map((ep: any) => ep.title)
+        .slice(0, 3);
+      return `• "${name}" — appeared in ${count} episodes: ${episodesWithPerson.join(", ")}`;
+    });
+
+  // Detect recurring themes that form ongoing storylines
+  const recentEps = episodes.slice(0, 5);
+  const recentThemes = recentEps.flatMap((ep: any) => ep.themes || []);
+  const recentThemeFreq: Record<string, number> = {};
+  recentThemes.forEach((t: string) => {
+    recentThemeFreq[t] = (recentThemeFreq[t] || 0) + 1;
+  });
+  const ongoingThemes = Object.entries(recentThemeFreq)
+    .filter(([_, count]) => count >= 2)
+    .map(([theme]) => `• "${theme}" — running across recent episodes`)
+    .slice(0, 4);
+
+  // Get the most recent episode's unresolved story threads
+  const latestEp = episodes[0];
+  const latestSummary = latestEp?.episode_summary || "";
+
+  const arcParts: string[] = [];
+  if (recurringCharacters.length > 0) {
+    arcParts.push(`RECURRING CHARACTERS (consider bringing back or referencing):\n${recurringCharacters.join("\n")}`);
+  }
+  if (ongoingThemes.length > 0) {
+    arcParts.push(`ONGOING STORY THREADS (continue building these):\n${ongoingThemes.join("\n")}`);
+  }
+  if (latestSummary) {
+    arcParts.push(`LAST EPISODE THREAD (pick up where we left off if relevant):\nEP "${latestEp.title}": ${latestSummary}`);
+  }
+
+  if (arcParts.length === 0) {
+    return "No arcs established yet — begin planting seeds for future callbacks.";
+  }
+  return arcParts.join("\n\n");
+})()}
+
+ARC INSTRUCTIONS:
+- If recurring characters appear above, consider a callback: "You might remember the situation I mentioned with [name] — there's been a development..."
+- If ongoing themes appear, weave them forward: don't restart — advance. Build on what was established.
+- If the last episode thread is relevant to today's topic, open a loop that continues the story
+- Treat the show as a SERIALIZED INTELLIGENCE BRIEFING, not standalone episodes
+- Plant ONE new seed this episode that could become a future arc: hint at an unresolved situation, a character's ongoing journey, or a pattern still developing
+
 === CONTINUITY GUIDANCE ===
-- You MAY reference 1-2 past episodes with callbacks like "Remember when we discussed..." or "In episode ${episodes[0]?.episode_number || 1}, I mentioned..."
-- If bringing back a character, make it explicit: "You might remember [Name] from a few episodes back..."
+- Reference past episodes naturally: "In a previous briefing, I mentioned..." or "You'll recall the story of..."
+- If bringing back a character, make it feel like catching up with someone the listener knows
 - Build on established frameworks but introduce NEW concepts each episode
 - Make callbacks feel earned, not forced—only use if genuinely relevant
 
