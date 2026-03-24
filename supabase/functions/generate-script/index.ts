@@ -608,6 +608,66 @@ CRITICAL INSTRUCTIONS FOR USING REAL PEOPLE:
       }
     }
 
+    // Fetch live intelligence from Fortress platform
+    let fortressIntelligence = "";
+    try {
+      const FORTRESS_URL = Deno.env.get("FORTRESS_SUPABASE_URL");
+      const FORTRESS_KEY = Deno.env.get("FORTRESS_SERVICE_KEY");
+
+      if (FORTRESS_URL && FORTRESS_KEY) {
+        const headers = { apikey: FORTRESS_KEY, Authorization: `Bearer ${FORTRESS_KEY}` };
+
+        const [knowledgeRes, beliefsRes, connectionsRes] = await Promise.all([
+          fetch(`${FORTRESS_URL}/rest/v1/expert_knowledge?is_active=eq.true&confidence_score=gte.0.72&order=confidence_score.desc&limit=12&select=domain,subdomain,title,content,knowledge_type`, { headers }),
+          fetch(`${FORTRESS_URL}/rest/v1/agent_beliefs?is_active=eq.true&confidence=gte.0.76&order=confidence.desc&limit=10&select=agent_call_sign,hypothesis,belief_type,confidence`, { headers }),
+          fetch(`${FORTRESS_URL}/rest/v1/knowledge_connections?connection_strength=gte.0.70&order=connection_strength.desc&limit=6&select=synthesis_note,agents_involved,connection_strength`, { headers }),
+        ]);
+
+        const [knowledge, beliefs, connections] = await Promise.all([
+          knowledgeRes.ok ? knowledgeRes.json() : [],
+          beliefsRes.ok ? beliefsRes.json() : [],
+          connectionsRes.ok ? connectionsRes.json() : [],
+        ]);
+
+        const parts: string[] = [];
+
+        if (knowledge?.length) {
+          parts.push(`LIVE INTELLIGENCE FROM THE FIELD (${knowledge.length} entries from Silent Shield's intelligence network):\n` +
+            knowledge.map((k: any) =>
+              `[${(k.subdomain || k.domain || k.knowledge_type || 'INTEL').toUpperCase()}] ${k.title}: ${k.content.substring(0, 200)}`
+            ).join("\n")
+          );
+        }
+
+        if (beliefs?.length) {
+          parts.push(`AGENT ANALYTICAL CONCLUSIONS (What our analysts actually believe right now):\n` +
+            beliefs.map((b: any) =>
+              `• ${b.agent_call_sign} (${Math.round(b.confidence * 100)}% confidence): ${b.hypothesis}`
+            ).join("\n")
+          );
+        }
+
+        if (connections?.length) {
+          parts.push(`CROSS-DOMAIN INSIGHTS (Non-obvious connections our network has identified):\n` +
+            connections.map((c: any) =>
+              `• [${c.agents_involved?.join(' × ')}]: ${c.synthesis_note}`
+            ).join("\n")
+          );
+        }
+
+        if (parts.length) {
+          fortressIntelligence = `\n\n=== FORTRESS INTELLIGENCE BRIEFING ===
+This is LIVE intelligence from Silent Shield's agent network. Use specific insights, patterns, and findings from this briefing to ground the episode in real, current intelligence. Aegis narrates FROM this intelligence — not around it. These are the stories coming across his desk.
+
+${parts.join("\n\n")}
+
+IMPORTANT: Weave this intelligence naturally into your narrative. Reference "advisors in our network" or "intelligence coming in" or "a pattern we've been tracking." Do NOT read it like a list — transform it into compelling story and insight.`;
+        }
+      }
+    } catch (fortressErr) {
+      console.error("Fortress intelligence fetch error (continuing):", fortressErr);
+    }
+
     // Fetch doctrine documents, episode history, and feedback for context
     let doctrineContext = "";
     let episodeHistory = "";
@@ -817,6 +877,7 @@ ${modeInstructions}
 ${guestContext}
 ${dialogueInstructions}
 ${researchContext}
+${fortressIntelligence}
 ${doctrineContext}
 ${episodeHistory}
 ${feedbackContext}
