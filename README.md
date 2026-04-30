@@ -1,73 +1,52 @@
-# Welcome to your Lovable project
+# Fortified Podcast — Production Studio
 
-## Project info
+The internal production studio behind the **Fortified Podcast** by Silent Shield. Generates AEGIS-narrated scripts, episode metadata, transcripts, captions, audio, and marketing assets.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Live: https://podcast.silentshieldsecurity.com
 
-## How can I edit this code?
+## What it does
 
-There are several ways of editing your application.
+- **Generate Script** — produces full episode scripts from a topic, in the AEGIS narrator voice. Backed by `supabase/functions/generate-script` and the host signoff rotation.
+- **Episode metadata extraction** — title, summary, chapters, and show-notes from a script or transcript.
+- **Audio + captions** — TTS audio rendering and SRT/VTT caption generation.
+- **Marketing assets** — short-form clips, social copy, pull-quotes.
+- **Guest research + episode topics** — pre-production research and topic suggestions.
+- **Library** — episode catalog with search, filter, and per-episode learning history.
 
-**Use Lovable**
+## Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- Vite + React + TypeScript + shadcn-ui + Tailwind
+- Hosted on Cloudflare Pages
+- Auth, database, edge functions: Supabase (project `kpuqukppbmwebiptqmog`)
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Local development
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+git clone https://github.com/aaronkilback/signal-lens-cast.git
+cd signal-lens-cast
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Requires Node 20+.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Deployment
 
-**Use GitHub Codespaces**
+Pushes to `main` auto-deploy to Cloudflare Pages (rebuilds the static bundle and uploads it as the `signal-lens-cast` Worker, which serves `podcast.silentshieldsecurity.com`).
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Edge functions deploy via the Supabase CLI:
 
-## What technologies are used for this project?
+```sh
+supabase functions deploy <name> --project-ref kpuqukppbmwebiptqmog
+```
 
-This project is built with:
+## Repository structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `src/` — React app (pages, components, hooks)
+- `supabase/functions/` — edge functions (generate-script, generate-audio, etc.)
+- `supabase/migrations/` — database schema migrations
+- `public/` — static assets
 
-## How can I deploy this project?
+## Notes
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This codebase was originally scaffolded with Lovable. It has since been adopted into the Silent Shield production stack and now lives independently. Episodes, host signoff rotation, learnings, and marketing assets all live in the shared Silent Shield Supabase project.
