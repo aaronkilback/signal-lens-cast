@@ -153,7 +153,36 @@ Remember: Every episode is a conversation. Make them feel like they're the only 
 
 Output ONLY speakable words. No brackets. No formatting. Just the script.`;
 
-const AEGIS_CTA = `
+// Build the close instructions with a specific signoff phrase rotated in.
+// The phrase comes from the host_signoffs table at runtime (least-recently-used
+// per user). The static template's old "Fortune favors the fortified... but
+// honestly?" line is replaced with this rotation so every episode's close
+// sounds different. The conversion mechanism ("send the word Fortified" with
+// the show-notes link) is preserved — that's the line the operator measures.
+const buildAegisCTA = (signoffPhrase: string) => `
+=== HOW TO CLOSE THE EPISODE (the most important 90 seconds) ===
+
+Before producing the close, scan the script you just wrote and pick ONE specific element to reference back to:
+  - a person you named
+  - a moment from a story you told
+  - a tactic or pattern you described
+  - a sensory detail or quote
+This back-reference is the difference between a generic close and one that lands. The listener should feel you remembered what they just spent 30 minutes hearing.
+
+THE CLOSE SHOULD HIT, IN ROUGHLY THIS SHAPE:
+1. A reflection that ties back to the specific episode element above. Two or three sentences.
+2. The "people who sleep well" beat — most people worry about the wrong things; the disciplined ones have done the work to worry about the right things; that's what buys real peace.
+3. The conversion paragraph: there's a link in the show notes that opens a direct, encrypted line to the Silent Shield team. No sales pitch. No pressure. Send the word "Fortified" and we'll talk about whether your current setup actually matches the life you're living.
+4. A note acknowledging the listener — welcome them if new, thank them if returning. Pick one organically.
+5. The sign-off line. Use this exact phrase, do not substitute or paraphrase: "${signoffPhrase}"
+6. A simple closing beat afterward — "Take care of yourselves out there." or your own warm variant.
+
+CRITICAL DO-NOTS:
+- DO NOT begin the close with "Fortune favors the fortified..." or any earlier-episode signature line. The rotation above is the sign-off.
+- DO NOT skip the "Fortified" conversion mechanism — that's the one line the operator measures.
+- DO NOT recycle phrasing from prior episodes' closes. Each close should sound like THIS episode wrote it.
+
+LEGACY CTA TEMPLATE (substance, not exact words — adapt freely):
 
 Look, I'm going to be real with you for a second.
 
@@ -171,7 +200,7 @@ If you're new here, welcome. Seriously. Subscribe so you don't miss next week—
 
 And if you've been with me for a while? Thank you. Tell one person who needs to hear this.
 
-This is Aegis. Fortune favors the fortified... but honestly? Fortune favors the ones who pay attention.
+This is Aegis. [INSERT THE ROTATION SIGN-OFF PHRASE FROM ABOVE HERE — DO NOT USE "FORTUNE FAVORS THE FORTIFIED"]
 
 Take care of yourselves out there.`;
 
@@ -401,6 +430,58 @@ serve(async (req) => {
 
     if (!GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY is not configured");
+    }
+
+    // ── Sign-off rotation: pick the least-recently-used phrase for this user ──
+    // Falls back to a sensible default if the host_signoffs table isn't seeded
+    // or the lookup fails. Best-effort — sign-off rotation must not break script
+    // generation. The chosen phrase is injected into the close instructions
+    // (buildAegisCTA below) and last_used_at is touched so it rotates next time.
+    let rotationSignoff = "Stay sharp out there.";
+    let rotationSignoffId: string | null = null;
+    if (userId) {
+      try {
+        const supaUrl = Deno.env.get("SUPABASE_URL");
+        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supaUrl && supaKey) {
+          const r = await fetch(
+            `${supaUrl}/rest/v1/host_signoffs?user_id=eq.${userId}&select=id,phrase&order=last_used_at.asc.nullsfirst&limit=1`,
+            { headers: { "apikey": supaKey, "Authorization": `Bearer ${supaKey}` } }
+          );
+          if (r.ok) {
+            const rows = await r.json() as Array<{ id: string; phrase: string }>;
+            if (rows && rows[0]?.phrase) {
+              rotationSignoff = rows[0].phrase;
+              rotationSignoffId = rows[0].id;
+            }
+          }
+        }
+      } catch (signoffErr) {
+        console.warn("[generate-script] sign-off rotation lookup failed (non-fatal):", signoffErr);
+      }
+    }
+    console.log(`[generate-script] using sign-off: "${rotationSignoff}"`);
+
+    // Mark the chosen phrase as used so it rotates next time. Best-effort.
+    if (rotationSignoffId) {
+      try {
+        const supaUrl = Deno.env.get("SUPABASE_URL");
+        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supaUrl && supaKey) {
+          await fetch(`${supaUrl}/rest/v1/host_signoffs?id=eq.${rotationSignoffId}`, {
+            method: "PATCH",
+            headers: {
+              "apikey": supaKey,
+              "Authorization": `Bearer ${supaKey}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal",
+            },
+            body: JSON.stringify({ last_used_at: new Date().toISOString() }),
+          });
+        }
+      } catch (touchErr) {
+        console.warn("[generate-script] sign-off last_used_at update failed (non-fatal):", touchErr);
+      }
     }
 
     // Build guest context for dialogue episodes
@@ -942,8 +1023,8 @@ ${doctrineContext}
 ${episodeHistory}
 ${feedbackContext}
 
-MANDATORY CLOSING CTA (include this EXACTLY at the end of every episode):
-${AEGIS_CTA}
+MANDATORY CLOSING CTA (follow these instructions for the close — adapt the substance, do not paste verbatim, and use the rotation sign-off below exactly):
+${buildAegisCTA(rotationSignoff)}
 
 CRITICAL REMINDER - TTS-READY OUTPUT:
 - Write ONLY the exact words to be spoken aloud

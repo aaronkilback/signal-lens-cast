@@ -1,21 +1,27 @@
 project_id = "kpuqukppbmwebiptqmog"
 
+# Security: every function except auth-email-hook now requires a valid Supabase
+# user JWT (verify_jwt = true is the default behaviour). auth-email-hook stays
+# public because Supabase Auth calls it from outside the user-session context
+# (e.g. for password reset email construction). All other functions are called
+# from the logged-in app; tightening this closes the public-AI-endpoint hole
+# that would otherwise let anyone hit GPT/Gemini billing on our account.
 [functions]
   [functions.agent-interview-session]
-    verify_jwt = false
+    verify_jwt = true
   [functions.auth-email-hook]
     verify_jwt = false
   [functions.fetch-fortress-agents]
-    verify_jwt = false
+    verify_jwt = true
   [functions.generate-audio]
-    verify_jwt = false
+    verify_jwt = true
   [functions.generate-captions]
-    verify_jwt = false
+    verify_jwt = true
   [functions.generate-marketing-assets]
-    verify_jwt = false
+    verify_jwt = true
   [functions.generate-script]
-    verify_jwt = false
+    verify_jwt = true
   [functions.suggest-clips]
-    verify_jwt = false
+    verify_jwt = true
   [functions.transcribe-video]
-    verify_jwt = false
+    verify_jwt = true
