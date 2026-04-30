@@ -27,3 +27,5 @@ project_id = "kpuqukppbmwebiptqmog"
     verify_jwt = true
   [functions.sync-buzzsprout]
     verify_jwt = true
+  [functions.suggest-topics-from-agents]
+    verify_jwt = true

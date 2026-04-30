@@ -1000,6 +1000,84 @@ Apply these learnings to make this episode even better than previous ones.`;
     const lifeDomains = (config.lifeDomains || config.riskDomains || []).map((d: string) => lifeDomainLabels[d] || d).join(", ");
     const modeInstructions = OUTPUT_MODE_INSTRUCTIONS[config.outputMode] || OUTPUT_MODE_INSTRUCTIONS.full_episode;
 
+    // ── Pre-generation: 3-agent task force debate on the topic ─────────────
+    // Triggers a structured debate via the Fortress multi-agent-debate function
+    // (lives in the same Supabase project). Three specialty agents argue the
+    // topic from their viewpoints; a judge synthesizes. The structured analyses
+    // become research context for the script — so claims are grounded in
+    // specialist reasoning instead of generic LLM knowledge.
+    //
+    // Off by default. Set SCRIPT_DEBATE_RESEARCH=true on the function to enable.
+    // 90s timeout, non-blocking — script generation proceeds without it on
+    // failure or timeout.
+    let taskForceContext = "";
+    if (Deno.env.get("SCRIPT_DEBATE_RESEARCH") === "true" && config.topic) {
+      try {
+        const supaUrl = Deno.env.get("SUPABASE_URL");
+        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supaUrl && supaKey) {
+          // Default trio for the Fortified Podcast — protective intel
+          // commander + behavioral profiler + UHNW asset specialist. Covers
+          // most security-domain topics. Could be tuned per-topic later.
+          const callSigns = ["GUARDIAN", "MCGRAW", "AUREUS-GUARD"];
+          const debateQuestion =
+            `Analyse this topic from your specialty for a podcast episode aimed at ${audience}: "${config.topic}". ` +
+            `What are the most important things a listener should walk away knowing? ` +
+            `What's the one nuance most people miss? ` +
+            `If there's a real recent case study or named individual that illustrates this, surface it.`;
+
+          const debatePromise = fetch(`${supaUrl}/functions/v1/multi-agent-debate`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${supaKey}`,
+              "Content-Type": "application/json",
+              apikey: supaKey,
+            },
+            body: JSON.stringify({ call_signs: callSigns, question: debateQuestion, debate_type: "podcast_research" }),
+          }).then(r => r.ok ? r.json() : null);
+
+          const timeout = new Promise<null>(resolve => setTimeout(() => resolve(null), 90_000));
+          const debateResult: any = await Promise.race([debatePromise, timeout]);
+
+          if (debateResult?.individual_analyses?.length) {
+            const analyses = debateResult.individual_analyses
+              .map((a: any) => {
+                const overall = a.overall_assessment || "(no summary)";
+                const conf = a.confidence != null ? ` | confidence ${a.confidence}` : "";
+                const hyps = (a.hypotheses || []).slice(0, 3)
+                  .map((h: any, i: number) => `   ${i + 1}. ${h.statement || h.hypothesis || JSON.stringify(h).slice(0, 200)}`)
+                  .join("\n");
+                return `### ${a.agent} — ${a.specialty || ""}${conf}\n${overall}${hyps ? `\nHypotheses:\n${hyps}` : ""}`;
+              })
+              .join("\n\n");
+
+            const synth = debateResult.synthesis || {};
+            const synthSummary = synth.final_assessment || synth.summary || synth.content || "(no synthesis)";
+            const recs = (debateResult.recommended_actions || []).slice(0, 5)
+              .map((r: any, i: number) => `  ${i + 1}. ${typeof r === "string" ? r : (r.action || JSON.stringify(r).slice(0, 200))}`)
+              .join("\n");
+
+            taskForceContext = `
+
+=== AGENT TASK FORCE RESEARCH (specialty agents debated this topic before you wrote) ===
+Three Silent Shield specialty agents independently analysed this topic. A judge synthesised the result. Treat their hypotheses and the synthesis as research notes — DO NOT name the agents in the script (Aegis is the only narrator the listener hears). DO weave their substantive insights into your storytelling.
+
+${analyses}
+
+### Judge synthesis
+${synthSummary}${recs ? `\n\nRecommended angles:\n${recs}` : ""}
+
+INSTRUCTION: Anchor at least two specific points in the episode on findings from this research above. Where the agents disagree (contested findings), acknowledge the tension — Aegis is honest about uncertainty.`;
+            console.log(`[generate-script] task force debate: ${debateResult.agents_participated}/3 agents, consensus ${debateResult.consensus_score}`);
+          } else {
+            console.warn("[generate-script] debate returned no analyses — proceeding without task force context");
+          }
+        }
+      } catch (debateErr) {
+        console.warn("[generate-script] debate research failed (non-fatal):", debateErr instanceof Error ? debateErr.message : String(debateErr));
+      }
+    }
+
     const userPrompt = `Generate a ${config.contentLength}-minute ${config.outputMode.replace(/_/g, " ")} on the following topic:
 
 TOPIC: ${config.topic}
@@ -1022,6 +1100,7 @@ ${fortressIntelligence}
 ${doctrineContext}
 ${episodeHistory}
 ${feedbackContext}
+${taskForceContext}
 
 MANDATORY CLOSING CTA (follow these instructions for the close — adapt the substance, do not paste verbatim, and use the rotation sign-off below exactly):
 ${buildAegisCTA(rotationSignoff)}
