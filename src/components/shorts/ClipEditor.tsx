@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import { CaptionPreview } from './CaptionPreview';
 import type { VideoUpload, VideoClip } from '@/pages/Shorts';
 
@@ -128,21 +129,14 @@ export function ClipEditor({ video, existingClips, onClipCreated, onBack }: Clip
 
     setIsLoadingSuggestions(true);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/suggest-clips`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            transcription: video.transcription,
-            segments: video.transcription_segments,
-            duration: video.duration_seconds || duration,
-          }),
-        }
-      );
+      const response = await edgeFetch('suggest-clips', {
+        method: 'POST',
+        body: JSON.stringify({
+          transcription: video.transcription,
+          segments: video.transcription_segments,
+          duration: video.duration_seconds || duration,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error('Failed to get suggestions');
@@ -203,22 +197,15 @@ export function ClipEditor({ video, existingClips, onClipCreated, onBack }: Clip
       // Get captions for this clip range
       let captions: any[] = [];
       if (video.transcription_segments) {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-captions`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              segments: video.transcription_segments,
-              startTime,
-              endTime,
-              style: 'martell',
-            }),
-          }
-        );
+        const response = await edgeFetch('generate-captions', {
+          method: 'POST',
+          body: JSON.stringify({
+            segments: video.transcription_segments,
+            startTime,
+            endTime,
+            style: 'martell',
+          }),
+        });
 
         if (response.ok) {
           const captionData = await response.json();

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Zap, ChevronDown, ChevronUp, Loader2, AlertTriangle, TrendingUp, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EpisodeSuggestion {
   topic: string;
@@ -32,21 +33,12 @@ export function IntelligenceSuggestions({ onSelectTopic }: IntelligenceSuggestio
     setIsLoading(true);
     setError(false);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/suggest-episode-topics`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({}),
-        }
-      );
+      const { data, error: invokeError } = await supabase.functions.invoke('suggest-episode-topics', {
+        body: {},
+      });
 
-      if (!response.ok) throw new Error('Failed to fetch');
-      const data = await response.json();
-      if (data.suggestions?.length > 0) {
+      if (invokeError) throw invokeError;
+      if (data?.suggestions?.length > 0) {
         setSuggestions(data.suggestions);
         setIsExpanded(true);
       }

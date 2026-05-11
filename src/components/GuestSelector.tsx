@@ -24,6 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import { GuestProfile, VoiceOption, VOICE_OPTIONS } from '@/lib/aegis-types';
 
 interface GuestSelectorProps {
@@ -120,17 +121,10 @@ export function GuestSelector({ selectedGuestId, onGuestSelect }: GuestSelectorP
     setIsResearching(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/research-guest`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ name: name.trim() }),
-        }
-      );
+      const response = await edgeFetch('research-guest', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim() }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

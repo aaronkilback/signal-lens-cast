@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import { FortressAgent } from '@/hooks/useFortressAgents';
 import { useAuth } from '@/hooks/useAuth';
 import { MarketingAssets } from '@/components/MarketingAssets';
@@ -453,20 +454,13 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
       };
 
       try {
-        const metadataResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              script: scriptToSave,
-              topic: `Fortress Interview: ${agent.codename}`,
-            }),
-          }
-        );
+        const metadataResponse = await edgeFetch('extract-episode-metadata', {
+          method: 'POST',
+          body: JSON.stringify({
+            script: scriptToSave,
+            topic: `Fortress Interview: ${agent.codename}`,
+          }),
+        });
 
         if (metadataResponse.ok) {
           metadata = await metadataResponse.json();
@@ -561,23 +555,15 @@ export function AgentInterviewStudio({ agent, onComplete }: AgentInterviewStudio
     setIsGeneratingAudio(true);
     try {
       // Generate audio via edge function (same as episode generator)
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audio`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            text: scriptToUse,
-            voice: 'onyx', // Aegis voice
-            guestVoice: 'echo', // Default agent voice
-            guestName: agent.codename,
-          }),
-        }
-      );
+      const response = await edgeFetch('generate-audio', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: scriptToUse,
+          voice: 'onyx', // Aegis voice
+          guestVoice: 'echo', // Default agent voice
+          guestName: agent.codename,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

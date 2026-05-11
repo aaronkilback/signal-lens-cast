@@ -21,6 +21,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import {
   GenerationConfig,
   TargetAudience,
@@ -397,12 +398,8 @@ export default function Generate() {
       
       let response: Response;
       try {
-        response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-script`, {
+        response = await edgeFetch('generate-script', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
           body: JSON.stringify(requestBody),
         });
       } catch (fetchError) {
@@ -507,12 +504,8 @@ export default function Generate() {
         audioRequest.guestName = selectedGuest.displayName;
       }
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audio`, {
+      const response = await edgeFetch('generate-audio', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
         body: JSON.stringify(audioRequest),
       });
 
@@ -617,20 +610,13 @@ export default function Generate() {
       };
 
       try {
-        const metadataResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              script: scriptToSave,
-              topic: config.topic,
-            }),
-          }
-        );
+        const metadataResponse = await edgeFetch('extract-episode-metadata', {
+          method: 'POST',
+          body: JSON.stringify({
+            script: scriptToSave,
+            topic: config.topic,
+          }),
+        });
 
         if (metadataResponse.ok) {
           metadata = await metadataResponse.json();
@@ -727,9 +713,8 @@ export default function Generate() {
       if (!episodeId) {
         let metadata = { key_stories: [] as string[], people_mentioned: [] as string[], themes: [] as string[], episode_summary: config.topic };
         try {
-          const metaRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-episode-metadata`, {
+          const metaRes = await edgeFetch('extract-episode-metadata', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
             body: JSON.stringify({ script: scriptToUse, topic: config.topic }),
           });
           if (metaRes.ok) metadata = await metaRes.json();
@@ -758,9 +743,6 @@ export default function Generate() {
       addProgress('Episode saved. Launching parallel production...');
 
       // Step 2: Fire audio + all 5 marketing assets in parallel
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const AUTH = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
-
       const audioRequest = {
         text: scriptToUse,
         voice: config.voice || 'onyx',
@@ -770,9 +752,8 @@ export default function Generate() {
       const assetTypes = ['show_notes', 'chapter_markers', 'social_posts', 'blog_post', 'transcript'] as const;
 
       const [audioResult, ...assetResults] = await Promise.allSettled([
-        fetch(`${SUPABASE_URL}/functions/v1/generate-audio`, {
+        edgeFetch('generate-audio', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: AUTH },
           body: JSON.stringify(audioRequest),
         }).then(async r => {
           if (!r.ok) throw new Error('Audio failed');
@@ -784,9 +765,8 @@ export default function Generate() {
           return url;
         }),
         ...assetTypes.map(assetType =>
-          fetch(`${SUPABASE_URL}/functions/v1/generate-marketing-assets`, {
+          edgeFetch('generate-marketing-assets', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: AUTH },
             body: JSON.stringify({ script: scriptToUse, topic: config.topic, assetType }),
           }).then(async r => {
             if (!r.ok) throw new Error(`${assetType} failed`);

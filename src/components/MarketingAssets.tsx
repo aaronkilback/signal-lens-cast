@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import { useAuth } from '@/hooks/useAuth';
 
 interface MarketingAssetsProps {
@@ -131,17 +132,10 @@ export function MarketingAssets({ script, topic, episodeId }: MarketingAssetsPro
     setLoading(prev => ({ ...prev, [assetType]: true }));
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-marketing-assets`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ script, topic, assetType }),
-        }
-      );
+      const response = await edgeFetch('generate-marketing-assets', {
+        method: 'POST',
+        body: JSON.stringify({ script, topic, assetType }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

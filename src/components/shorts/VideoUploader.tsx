@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { edgeFetch } from '@/lib/edge-fetch';
 import type { VideoUpload } from '@/pages/Shorts';
 
 interface VideoUploaderProps {
@@ -155,12 +156,8 @@ export function VideoUploader({ onVideoUploaded }: VideoUploaderProps) {
       setUploadStage('transcribing');
 
       // Start transcription in background
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-video`, {
+      edgeFetch('transcribe-video', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
         body: JSON.stringify({
           videoId: videoRecord.id,
           storagePath,
