@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -230,7 +231,9 @@ serve(async (req) => {
     // Fetch prior interviews for Aegis context
     if (isAegis && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const bootstrap = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const serviceKey = await resolveServiceRoleKey(bootstrap);
+        const supabase = createClient(SUPABASE_URL, serviceKey);
         const { data } = await supabase
           .from('agent_interviews')
           .select('agent_codename, transcript, created_at')

@@ -21,6 +21,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,7 +111,9 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(supaUrl, supaKey);
+    const bootstrap = createClient(supaUrl, supaKey);
+    const serviceKey = await resolveServiceRoleKey(bootstrap);
+    const supabase = createClient(supaUrl, serviceKey);
 
     const feedUrl = `https://feeds.buzzsprout.com/${podcastId}.rss`;
     const resp = await fetch(feedUrl, { headers: { "User-Agent": "fortified-podcast-sync/1.0" } });

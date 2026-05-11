@@ -26,6 +26,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,7 +112,9 @@ serve(async (req) => {
     const minConfidence = Math.max(0, Math.min(1, parseFloat(String(body.min_confidence || 0.70))));
     const daysBack = Math.max(1, Math.min(365, parseInt(String(body.days_back || 30), 10)));
 
-    const supabase = createClient(supaUrl, supaKey);
+    const bootstrap = createClient(supaUrl, supaKey);
+    const serviceKey = await resolveServiceRoleKey(bootstrap);
+    const supabase = createClient(supaUrl, serviceKey);
     const sinceISO = new Date(Date.now() - daysBack * 86400000).toISOString();
 
     const { data: beliefs, error: bErr } = await supabase

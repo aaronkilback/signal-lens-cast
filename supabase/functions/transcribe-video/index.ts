@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,8 +28,10 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const legacyKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const bootstrap = createClient(supabaseUrl, legacyKey);
+    const serviceKey = await resolveServiceRoleKey(bootstrap);
+    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Get signed URL for the video
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage

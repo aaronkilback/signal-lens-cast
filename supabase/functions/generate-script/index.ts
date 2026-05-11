@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -432,6 +434,20 @@ serve(async (req) => {
       throw new Error("GEMINI_API_KEY is not configured");
     }
 
+    // Resolve current service-role key from vault once. The env-injected
+    // SERVICE_ROLE_KEY is the legacy JWT (revoked May 9 rotation); all
+    // PostgREST + storage fetches below need the rotated sb_secret_*.
+    const SUPABASE_URL_FN = Deno.env.get("SUPABASE_URL");
+    let resolvedServiceKey: string | null = null;
+    if (SUPABASE_URL_FN) {
+      try {
+        const bootstrap = createClient(SUPABASE_URL_FN, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+        resolvedServiceKey = await resolveServiceRoleKey(bootstrap);
+      } catch (e) {
+        console.warn("[generate-script] vault key resolve failed, downstream queries will degrade:", e);
+      }
+    }
+
     // ── Sign-off rotation: pick the least-recently-used phrase for this user ──
     // Falls back to a sensible default if the host_signoffs table isn't seeded
     // or the lookup fails. Best-effort — sign-off rotation must not break script
@@ -441,8 +457,8 @@ serve(async (req) => {
     let rotationSignoffId: string | null = null;
     if (userId) {
       try {
-        const supaUrl = Deno.env.get("SUPABASE_URL");
-        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        const supaUrl = SUPABASE_URL_FN;
+        const supaKey = resolvedServiceKey;
         if (supaUrl && supaKey) {
           const r = await fetch(
             `${supaUrl}/rest/v1/host_signoffs?user_id=eq.${userId}&select=id,phrase&order=last_used_at.asc.nullsfirst&limit=1`,
@@ -465,8 +481,8 @@ serve(async (req) => {
     // Mark the chosen phrase as used so it rotates next time. Best-effort.
     if (rotationSignoffId) {
       try {
-        const supaUrl = Deno.env.get("SUPABASE_URL");
-        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        const supaUrl = SUPABASE_URL_FN;
+        const supaKey = resolvedServiceKey;
         if (supaUrl && supaKey) {
           await fetch(`${supaUrl}/rest/v1/host_signoffs?id=eq.${rotationSignoffId}`, {
             method: "PATCH",
@@ -692,8 +708,11 @@ CRITICAL INSTRUCTIONS FOR USING REAL PEOPLE:
     // Fetch live intelligence from Fortress platform
     let fortressIntelligence = "";
     try {
-      const FORTRESS_URL = Deno.env.get("FORTRESS_SUPABASE_URL");
-      const FORTRESS_KEY = Deno.env.get("FORTRESS_SERVICE_KEY");
+      // Podcast + Fortress share Supabase project, so the vault-
+      // resolved service key + SUPABASE_URL work in place of the
+      // legacy FORTRESS_* secrets (which held the revoked JWT).
+      const FORTRESS_URL = SUPABASE_URL_FN ?? Deno.env.get("FORTRESS_SUPABASE_URL");
+      const FORTRESS_KEY = resolvedServiceKey ?? Deno.env.get("FORTRESS_SERVICE_KEY");
 
       if (FORTRESS_URL && FORTRESS_KEY) {
         const headers = { apikey: FORTRESS_KEY, Authorization: `Bearer ${FORTRESS_KEY}` };
@@ -755,9 +774,9 @@ IMPORTANT: Weave this intelligence naturally into your narrative. Reference "adv
     let feedbackContext = "";
     
     if (userId) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
+      const supabaseUrl = SUPABASE_URL_FN;
+      const supabaseKey = resolvedServiceKey;
+
       if (supabaseUrl && supabaseKey) {
         // Fetch doctrine documents
         const docResponse = await fetch(
@@ -1013,8 +1032,8 @@ Apply these learnings to make this episode even better than previous ones.`;
     let taskForceContext = "";
     if (Deno.env.get("SCRIPT_DEBATE_RESEARCH") === "true" && config.topic) {
       try {
-        const supaUrl = Deno.env.get("SUPABASE_URL");
-        const supaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        const supaUrl = SUPABASE_URL_FN;
+        const supaKey = resolvedServiceKey;
         if (supaUrl && supaKey) {
           // Default trio for the Fortified Podcast — protective intel
           // commander + behavioral profiler + UHNW asset specialist. Covers
