@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveServiceRoleKey } from "../_shared/current-service-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,28 +14,36 @@ serve(async (req) => {
 
   try {
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    const FORTRESS_URL = Deno.env.get("FORTRESS_SUPABASE_URL");
-    const FORTRESS_KEY = Deno.env.get("FORTRESS_SERVICE_KEY");
+    // Podcast + Fortress share the same Supabase project, so the
+    // auto-injected SUPABASE_URL is what we query. FORTRESS_*
+    // env vars are legacy and held a revoked JWT post-rotation.
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("FORTRESS_SUPABASE_URL");
 
     if (!GEMINI_API_KEY) {
       throw new Error("GEMINI_API_KEY is not configured");
     }
 
-    if (!FORTRESS_URL || !FORTRESS_KEY) {
+    if (!SUPABASE_URL) {
       return new Response(
         JSON.stringify({ suggestions: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch fresh intelligence from Fortress
-    const headers = { apikey: FORTRESS_KEY, Authorization: `Bearer ${FORTRESS_KEY}` };
+    // Resolve the live service-role key from vault. The env-injected
+    // SERVICE_ROLE_KEY is the legacy JWT — auth rejects it with 401,
+    // which is why every PostgREST fetch below was silently coming
+    // back as `[]` after the May 9 rotation.
+    const bootstrap = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+    const serviceKey = await resolveServiceRoleKey(bootstrap);
+
+    const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
     const [knowledgeRes, beliefsRes, connectionsRes, signalsRes] = await Promise.all([
-      fetch(`${FORTRESS_URL}/rest/v1/expert_knowledge?is_active=eq.true&confidence_score=gte.0.70&order=created_at.desc&limit=15&select=domain,subdomain,title,content,confidence_score,created_at`, { headers }),
-      fetch(`${FORTRESS_URL}/rest/v1/agent_beliefs?is_active=eq.true&confidence=gte.0.72&order=created_at.desc&limit=12&select=agent_call_sign,hypothesis,belief_type,confidence,created_at`, { headers }),
-      fetch(`${FORTRESS_URL}/rest/v1/knowledge_connections?connection_strength=gte.0.68&order=created_at.desc&limit=8&select=synthesis_note,agents_involved,connection_strength`, { headers }),
-      fetch(`${FORTRESS_URL}/rest/v1/signals?order=created_at.desc&limit=20&select=title,description,severity,category,created_at`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/expert_knowledge?is_active=eq.true&confidence_score=gte.0.70&order=created_at.desc&limit=15&select=domain,subdomain,title,content,confidence_score,created_at`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/agent_beliefs?is_active=eq.true&confidence=gte.0.72&order=created_at.desc&limit=12&select=agent_call_sign,hypothesis,belief_type,confidence,created_at`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/knowledge_connections?connection_strength=gte.0.68&order=created_at.desc&limit=8&select=synthesis_note,agents_involved,connection_strength`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/signals?order=created_at.desc&limit=20&select=title,description,severity,category,created_at`, { headers }),
     ]);
 
     const [knowledge, beliefs, connections, signals] = await Promise.all([
