@@ -179,36 +179,56 @@ serve(async (req) => {
     // Use larger chunk size for fewer concatenation artifacts
     const MAX_CHARS = 4000;
     
+    // Parallelize OpenAI TTS calls so 3× sequential ~50s chunks (which hit
+    // Supabase's 150s edge-function wall-clock limit) collapse to ~max(chunk).
+    // Promise.all preserves array order, so concatenation in the original
+    // input order is unaffected.
+    const totalStart = Date.now();
     if (isDialogue) {
       console.log(`Processing dialogue script with guest: ${guestName} (speed=${speed})`);
-      
+
       const segments = parseDialogueScript(text, voice, guestVoice, guestName);
       console.log(`Found ${segments.length} voice segments`);
-      
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
+
+      // Flatten (segment, chunk) pairs into a single ordered list so every
+      // chunk across every segment runs in parallel under one Promise.all.
+      const flat: { segIdx: number; chunkIdx: number; total: number; voice: string; text: string }[] = [];
+      segments.forEach((segment, segIdx) => {
         const chunks = splitTextIntoChunks(segment.text, MAX_CHARS);
-        
-        for (let j = 0; j < chunks.length; j++) {
-          const chunk = chunks[j];
-          console.log(`Segment ${i + 1}/${segments.length}, chunk ${j + 1}/${chunks.length}: ${chunk.length} chars (${segment.voice})`);
-          const audioBuffer = await generateAudioChunk(chunk, segment.voice, OPENAI_API_KEY, speed);
-          audioChunks.push(audioBuffer);
-        }
-      }
+        chunks.forEach((chunk, chunkIdx) => {
+          flat.push({ segIdx, chunkIdx, total: chunks.length, voice: segment.voice, text: chunk });
+        });
+      });
+      console.log(`Dialogue: ${flat.length} chunks across ${segments.length} segments (parallel)`);
+
+      const dialogueBuffers = await Promise.all(
+        flat.map(async (f, idx) => {
+          const chunkStart = Date.now();
+          console.log(`Dialogue ${idx + 1}/${flat.length}: seg ${f.segIdx + 1}/${segments.length} chunk ${f.chunkIdx + 1}/${f.total} (${f.text.length} chars, ${f.voice}): starting`);
+          const buf = await generateAudioChunk(f.text, f.voice, OPENAI_API_KEY, speed);
+          console.log(`Dialogue ${idx + 1}/${flat.length}: done in ${Date.now() - chunkStart}ms`);
+          return buf;
+        })
+      );
+      audioChunks.push(...dialogueBuffers);
     } else {
       console.log("Processing solo episode");
-      
+
       const chunks = splitTextIntoChunks(text, MAX_CHARS);
-      console.log(`Split into ${chunks.length} chunks`);
-      
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        console.log(`Processing chunk ${i + 1}/${chunks.length}: ${chunk.length} chars`);
-        const audioBuffer = await generateAudioChunk(chunk, voice, OPENAI_API_KEY, speed);
-        audioChunks.push(audioBuffer);
-      }
+      console.log(`Split into ${chunks.length} chunks (parallel)`);
+
+      const soloBuffers = await Promise.all(
+        chunks.map(async (chunk, i) => {
+          const chunkStart = Date.now();
+          console.log(`Chunk ${i + 1}/${chunks.length}: starting (${chunk.length} chars)`);
+          const buf = await generateAudioChunk(chunk, voice, OPENAI_API_KEY, speed);
+          console.log(`Chunk ${i + 1}/${chunks.length}: done in ${Date.now() - chunkStart}ms`);
+          return buf;
+        })
+      );
+      audioChunks.push(...soloBuffers);
     }
+    console.log(`Total TTS wall time: ${Date.now() - totalStart}ms across ${audioChunks.length} chunks`);
 
     // Concatenate all audio chunks
     const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.byteLength, 0);
